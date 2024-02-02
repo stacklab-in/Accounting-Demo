@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunk_accounting_billing_stacklab=self.webpackChunk_accounting_billing_stacklab||[]).push([[678],{19678:function(a,c,n){n.r(c);var l=n(7464);c.default=l.g}}]);
+//# sourceMappingURL=678.a8a907bd.chunk.js.map
