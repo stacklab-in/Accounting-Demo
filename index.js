@@ -13,7 +13,6 @@ const authRoutes = require('./src/routes/auth.routes');
 const offerRoutes = require('./src/routes/offer.routes');
 const expenditureRoutes = require('./src/routes/expenditure.routes');
 const employeeRoutes = require('./src/routes/employee.routes');
-const { auth } = require("./src/middlewares/auth");
 const morgan = require('morgan');
 
 // Initialize the MongoDB connection via mongoose module
@@ -30,7 +29,6 @@ app.use(express.json());
 const PORT = process.env.port;
 
 app.use('/auth', authRoutes)
-app.use(auth);
 app.use('/user', userRoutes);
 app.use('/customer', customerRoutes);
 app.use('/vendor', vendorRoutes);
