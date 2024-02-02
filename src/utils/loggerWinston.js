@@ -17,17 +17,17 @@ const myFormat = format.combine(
   format.json()
 );
 
-// This logger is used to log the audit events (who did what and when)
-const _auditLogger = createLogger({
-  level: "info",
-  transports: [
-    new transports.File({
-      filename: path.join(process.env.LOG_DIRECTORY, "audit.log"),
-      maxsize: process.env.LOG_MAX_SIZE_BYTES,
-      format: myFormat,
-    }),
-  ],
-});
+// // This logger is used to log the audit events (who did what and when)
+// const _auditLogger = createLogger({
+//   level: "info",
+//   transports: [
+//     new transports.File({
+//       filename: path.join(process.env.LOG_DIRECTORY, "audit.log"),
+//       maxsize: process.env.LOG_MAX_SIZE_BYTES,
+//       format: myFormat,
+//     }),
+//   ],
+// });
 
 // This logger is used to log the audit events (who did what and when)
 // const _fcmMessageLogger = createLogger({
@@ -42,17 +42,17 @@ const _auditLogger = createLogger({
 // });
 
 // This logger is used to log for server activities. Explore more
-const _serverLogger = createLogger({
-  level: "info",
-  transports: [
-    new transports.File({
-      filename: path.join(process.env.LOG_DIRECTORY, "server.log"),
-      maxsize: process.env.LOG_MAX_SIZE_BYTES,
-      format: myFormat,
-      handleExceptions: true,
-    }),
-  ],
-});
+// const _serverLogger = createLogger({
+//   level: "info",
+//   transports: [
+//     new transports.File({
+//       filename: path.join(process.env.LOG_DIRECTORY, "server.log"),
+//       maxsize: process.env.LOG_MAX_SIZE_BYTES,
+//       format: myFormat,
+//       handleExceptions: true,
+//     }),
+//   ],
+// });
 
 
 const auditLogger = async (message) => {
