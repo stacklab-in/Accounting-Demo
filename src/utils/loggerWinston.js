@@ -56,11 +56,13 @@ const _serverLogger = createLogger({
 
 
 const auditLogger = async (message) => {
-  _auditLogger.log("info", message);
+  // _auditLogger.log("info", message);
+  console.log(message);
 };
 
 const serverLogger = async (type, message) => {
-  _serverLogger.log(type, message);
+  // _serverLogger.log(type, message);
+  console.log(type, message);
 };
 
 
@@ -68,6 +70,6 @@ const serverLogger = async (type, message) => {
 // Export the logger functions
 module.exports = {
   auditLogger,
-//   fcmMessageLogger,
+  //   fcmMessageLogger,
   serverLogger,
 };
