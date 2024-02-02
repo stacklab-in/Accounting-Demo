@@ -43,11 +43,11 @@ app.use('/employee', employeeRoutes);
 
 // if (process.env.NODE_ENV == 'production') {
 const path = require('path')
-app.use(express.static(path.join(__dirname, "../build")));
+app.use(express.static(path.join(__dirname, "/build")));
 
 app.get("*", function (_, res) {
     res.sendFile(
-        path.join(__dirname, "../build/index.html"),
+        path.join(__dirname, "/build/index.html"),
         function (err) {
             if (err) {
                 res.status(500).send(err)
