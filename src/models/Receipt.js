@@ -4,10 +4,9 @@ const { common } = require("../utils/constants");
 // Define Receipt Schema
 const receiptSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
-    invoiceNumber: { type: Number, required: true, unique: true },
+    invoiceNumber: { type: String, required: true },
     amount: { type: Number, required: true },
-    paymentMode: { type: String, required: true, ENUM: common.paymentMode },
-    paymentStatus: { type: String, required: true, enum: common.paymentStatus },
+    paymentId: { type: Schema.Types.ObjectId, ref: 'Payment' },
     partyType: { type: String, required: true, enum: common.partyType },
     isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });

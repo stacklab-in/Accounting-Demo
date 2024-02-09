@@ -12,9 +12,9 @@ const address = {
 const customerSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, unique: true },
     mobileNumber: { type: String, required: true },
-    type: { type: String, required: true, enum: common.userType },
+    type: { type: String },
     company: {
         name: { type: String, },
         gstNumber: { type: String, },

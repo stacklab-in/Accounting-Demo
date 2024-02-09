@@ -14,9 +14,12 @@ const _getRandomIntUptoTenK = () => {
     return Math.floor(Math.random() * 10001);
 };
 
-const newIdForRole = () => { return `R${Date.now()}`};
-const newIdForPermission = () => { return `P${Date.now()}`};
-const newIdForUser = () => { return `U${Date.now()}`};
+const newIdForRole = () => { return `R${Date.now()}` };
+const newIdForPermission = () => { return `P${Date.now()}` };
+const newIdForUser = () => { return `U${Date.now()}` };
+const newIdForPayment = () => { return `PMT${Date.now()}` };
+const newIdForInvoice = () => { return `INV${Date.now()}` };
+const newIdForTransaction = () => { return `TRNX${Date.now()}` };
 
 const newIdForMongoObject = () => { return mongoose.mongo.ObjectId() };
 
@@ -24,5 +27,8 @@ module.exports = {
     newIdForMongoObject,
     newIdForRole,
     newIdForPermission,
-    newIdForUser
+    newIdForUser,
+    newIdForPayment,
+    newIdForInvoice,
+    newIdForTransaction
 };

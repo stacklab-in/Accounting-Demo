@@ -5,10 +5,11 @@ const { common } = require("../utils/constants");
 const salesOrderSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User" },
     customerId: { type: Schema.Types.ObjectId, ref: "Customer" },
+    salesManId: { type: Schema.Types.ObjectId, ref: "Employee" },
     transactionId: { type: String, required: true },
     invoiceDate: { type: Date, required: true },
-    invoiceNumber: { type: Number, required: true },
-    dueDate: { type: Date, required: true },
+    invoiceDueDate: { type: Date, required: true },
+    invoiceNumber: { type: String, required: true, unique: true },
     products: [
         {
             name: { type: String, required: true },
@@ -19,19 +20,22 @@ const salesOrderSchema = new Schema({
             netAmount: { type: Number, required: true }
         }
     ],
-    appliedOfferCode: { type: String },
+    discount: {
+        offer: {
+            id: { type: Schema.Types.ObjectId, ref: "Offer" },
+            discount: { type: Number }
+        },
+        productDiscount: { type: Number }
+    },
     totalDiscount: { type: Number },
     totalAmount: { type: Number, required: true },
     remainingAmount: { type: Number, required: true },
-    // paymentMode: { type: String, default: 'PENDING', enum: common.paymentMode },
-    // paymentStatus: { type: String, default: 'PENDING', enum: common.paymentStatus },
     payments: [
         {
             paymentID: { type: Schema.Types.ObjectId, ref: 'Payment' },
+            receiptID: { type: Schema.Types.ObjectId, ref: 'Receipt' },
             amount: { type: Number, required: true },
             paymentDate: { type: Date, required: true },
-            paymentMode: { type: String, required: true, enum: common.paymentMode },
-            paymentType: { type: String, required: true, enum: common.paymentType }
         }
     ],
     isDeleted: { type: Boolean, default: false }

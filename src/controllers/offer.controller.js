@@ -55,7 +55,11 @@ const update = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const offers = await Offer.find({ isDeleted: false, userId: req.user._id });
+        const query = { isDeleted: false, userId: req.user._id };
+        if (req.body.status) {
+            query.status = { $in: req.body.status };
+        }
+        const offers = await Offer.find(query);
         return res.status(200).json({ msg: 'Offers fetched successfully!.', data: offers });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

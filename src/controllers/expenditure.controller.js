@@ -1,27 +1,22 @@
 const Expenditure = require('../models/Expenditure');
 const { serverLogger } = require('../utils/loggerWinston');
 
-
 const add = async (req, res) => {
     try {
 
         let requestBody = req.body;
-
-        const existingCollection = await Expenditure.findOne({ isDeleted: false, code: req.body.code });
-
-        if (existingCollection) {
-            return res.status(400).json({ error: 'Expenditure already exists!..' })
-        };
-
+        console.log("🚀 ~ add ~ requestBody:", requestBody)
         requestBody.userId = req.user._id;
+        requestBody.date = new Date(requestBody.date);
 
-        const newOffer = await Expenditure.create(requestBody);
+        console.log(requestBody.userId, requestBody.date)
+        const newExpenditure = await Expenditure.create(requestBody);
 
-        if (!newOffer) {
-            return res.status(400).json({ error: 'Error while creating vendor!..' })
+        if (!newExpenditure) {
+            return res.status(400).json({ error: 'Error while creating new expense!..' })
         };
 
-        return res.status(201).json({ msg: 'Expenditure created successfully!..', data: newOffer });
+        return res.status(201).json({ msg: 'Expenditure created successfully!..', data: newExpenditure });
 
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
@@ -33,7 +28,6 @@ const add = async (req, res) => {
 const update = async (req, res) => {
     try {
         const updatedData = req.body;
-        updatedData.mobileNumber = `+91${req.body.mobileNumber}`;
 
         const expenditure = await Expenditure.findOneAndUpdate(
             { userId: req.user._id, isDeleted: false, _id: req.body.id },
@@ -56,7 +50,7 @@ const update = async (req, res) => {
 const list = async (req, res) => {
     try {
         const expenditureArray = await Expenditure.find({ isDeleted: false, userId: req.user._id });
-        return res.status(200).json({ msg: 'Offers fetched successfully!.', data: expenditureArray });
+        return res.status(200).json({ msg: 'Expenses fetched successfully!.', data: expenditureArray });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
         return res.status(500).json({ error: 'Internal Server Error' });
