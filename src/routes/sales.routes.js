@@ -53,14 +53,10 @@ router.post('/record-payment',
         }
     });
 
-// router.post('/delete',
-//     auth,
-//     //  checkPermissions('role.list),
-//     sales.remove).descriptor({
-//         name: "List all roles",
-//         body: {
-//             id: 'vendorId'
-//         }
-//     });
+router.get('/summary',
+    auth,
+    sales.getSummaryOfSales).descriptor({
+        name: "List all Summary of sales order",
+    });
 
 module.exports = router;

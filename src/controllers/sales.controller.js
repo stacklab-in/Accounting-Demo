@@ -253,5 +253,34 @@ const recordPayment = async (req, res) => {
     };
 };
 
+const getSummaryOfSales = async (req, res) => {
+    try {
+        const salesOrders = await Sales.find({});
 
-module.exports = { add, list, recordPayment };
+        // Calculate total sales amount
+        const totalSalesAmount = salesOrders.reduce((acc, order) => acc + order.totalAmount, 0).toFixed(2);
+
+        // Calculate total paid amount
+        const totalPaidAmount = salesOrders.reduce((acc, order) => {
+            const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
+            return acc + paidAmount;
+        }, 0).toFixed(2);
+
+        // Calculate pending amount
+        const pendingAmount = (totalSalesAmount - totalPaidAmount).toFixed(2);
+
+         const summary = {
+            totalSalesAmount: Number(totalSalesAmount),
+            totalPaidAmount: Number(totalPaidAmount),
+            pendingAmount: Number(pendingAmount)
+        };
+
+
+        res.status(200).json({ msg: 'Summary fetched successfully', data: summary });
+    } catch (error) {
+        serverLogger("error", { error: error.stack || error.toString() });
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+}
+
+module.exports = { add, list, recordPayment, getSummaryOfSales };
