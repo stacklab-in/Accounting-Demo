@@ -13,6 +13,8 @@ const authRoutes = require('./src/routes/auth.routes');
 const offerRoutes = require('./src/routes/offer.routes');
 const expenditureRoutes = require('./src/routes/expenditure.routes');
 const employeeRoutes = require('./src/routes/employee.routes');
+const salesRoutes = require('./src/routes/sales.routes');
+const bankRoutes = require('./src/routes/bank.routes');
 const morgan = require('morgan');
 
 // Initialize the MongoDB connection via mongoose module
@@ -39,6 +41,8 @@ app.use('/role', roleRoutes);
 app.use('/offer', offerRoutes);
 app.use('/expenditure', expenditureRoutes);
 app.use('/employee', employeeRoutes);
+app.use('/sales', salesRoutes);
+app.use('/bank', bankRoutes);
 
 
 // if (process.env.NODE_ENV == 'production') {
