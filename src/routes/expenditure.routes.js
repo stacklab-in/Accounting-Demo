@@ -13,11 +13,11 @@ router.post('/add',
     expenditure.add).descriptor({
         name: 'Create a expenditure',
         body: {
-            price:'200', //In Rupees
-            date:'date',
-            category:'',
-            paymentStatus:'',
-            paymentMode:''
+            price: '200', //In Rupees
+            date: 'date',
+            category: '',
+            paymentStatus: '',
+            paymentMode: ''
 
         }
     });
@@ -28,12 +28,26 @@ router.post('/update',
     expenditure.update).descriptor({
         name: "Update a expenditure",
         body: {
-            price:'200', //In Rupees
-            date:'date',
-            category:'',
-            paymentStatus:'',
-            paymentMode:''
+            id: '',
+            date: 'date',
+            type: '',
+            category: '',
 
+        }
+    });
+
+
+router.post('/record-payment',
+    auth,
+    //  checkPermissions('role.list),
+    expenditure.recordPayment).descriptor({
+        name: "Record Pending Payments",
+        body: {
+            id: '',
+            amountToPay: '',
+            paymentDate: '',
+            paymentMode: '',
+            bank: ''     // If not CASH account then only it will come
         }
     });
 
@@ -53,5 +67,10 @@ router.post('/delete',
             id: 'vendorId'
         }
     });
+
+    router.get('/payments',auth,expenditure.getPaymentsSummary).descriptor({
+        name:'List all EXPENSE/INCOME payments',
+        description:'List all EXPENSE/INCOME payments and summary'
+    })
 
 module.exports = router;

@@ -15,6 +15,8 @@ const expenditureRoutes = require('./src/routes/expenditure.routes');
 const employeeRoutes = require('./src/routes/employee.routes');
 const salesRoutes = require('./src/routes/sales.routes');
 const bankRoutes = require('./src/routes/bank.routes');
+const receiptRoutes = require('./src/routes/receipt.routes');
+const paymentRoutes = require('./src/routes/payment.routes');
 const morgan = require('morgan');
 
 // Initialize the MongoDB connection via mongoose module
@@ -43,6 +45,8 @@ app.use('/expenditure', expenditureRoutes);
 app.use('/employee', employeeRoutes);
 app.use('/sales', salesRoutes);
 app.use('/bank', bankRoutes);
+app.use('/receipt', receiptRoutes);
+app.use('/payment', paymentRoutes);
 
 
 // if (process.env.NODE_ENV == 'production') {

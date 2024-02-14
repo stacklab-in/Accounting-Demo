@@ -45,10 +45,10 @@ module.exports.login = async (req, res) => {
         };
 
         // Generating JWT  
-        let token = jwt.sign({ userId: user._id.toString(), email: user.email }, process.env.APP_SECRET, { expiresIn: '7d' });
+        let accessToken = jwt.sign({ userId: user._id.toString(), email: user.email }, process.env.APP_SECRET, { expiresIn: '7d' });
 
         // send response to  user that Author is successfully logged in
-        return res.status(200).send({ status: true, message: "User logined successfully", data: { token, user } });
+        return res.status(200).send({ status: true, message: "User logined successfully", data: { accessToken, user } });
 
     } catch (err) {
         // Implement logger function if any
@@ -129,7 +129,7 @@ module.exports.delete = async (req, res) => {
 
 module.exports.getProfile = async (req, res) => {
     try {
-        return res.status(200).json({ status: true, data: req.user })
+        return res.status(200).json({ status: true, user: req.user })
     } catch (err) {
         console.error(err);
         // Implement logger function if any

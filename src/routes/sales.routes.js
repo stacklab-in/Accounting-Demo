@@ -18,18 +18,17 @@ router.post('/add', auth,
         }
     });
 
-// router.post('/update',
-//     auth,
-//     //  checkPermissions('role.update'),
-//     sales.update).descriptor({
-//         name: "Update a sales",
-//         body: {
-//             code: 'asj3sa',
-//             description: 'Create a new sales',
-//             status: 'Draft',
-//             type: 'Percentage',
-//         }
-//     });
+router.post('/update',
+    auth,
+    //  checkPermissions('role.update'),
+    sales.update).descriptor({
+        name: "Update a sales",
+        body: {
+            id: '',
+            invoiceDueDate: '',
+            paymentStatus: ''
+        }
+    });
 
 router.post('/list',
     auth,
@@ -57,6 +56,16 @@ router.get('/summary',
     auth,
     sales.getSummaryOfSales).descriptor({
         name: "List all Summary of sales order",
+    });
+
+
+router.post('/delete',
+    auth,
+    sales.remove).descriptor({
+        name: "Delete a sales order",
+        body: {
+            id: ''
+        }
     });
 
 module.exports = router;

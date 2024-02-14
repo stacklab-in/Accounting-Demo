@@ -62,7 +62,7 @@ const getAllEmployees = async (req, res) => {
             {
                 $lookup: {
                     from: "salesorders",
-                    let: { employeeId: "$_id" },
+                    let: { employeeId: "$_id"},
                     pipeline: [
                         {
                             $match: {

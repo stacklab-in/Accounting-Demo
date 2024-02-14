@@ -14,7 +14,7 @@ const salesOrderSchema = new Schema({
         {
             name: { type: String, required: true },
             quantity: { type: Number, required: true },
-            sellPrice: { type: Number, required: true },
+            sellingPrice: { type: Number, required: true },
             gstValue: { type: Number, required: true },
             discount: { type: Number, required: true }, //In Percent
             netAmount: { type: Number, required: true }
@@ -22,7 +22,7 @@ const salesOrderSchema = new Schema({
     ],
     discount: {
         offer: {
-            id: { type: Schema.Types.ObjectId, ref: "Offer" },
+            id: {},
             discount: { type: Number }
         },
         productDiscount: { type: Number }
@@ -30,6 +30,7 @@ const salesOrderSchema = new Schema({
     totalDiscount: { type: Number },
     totalAmount: { type: Number, required: true },
     remainingAmount: { type: Number, required: true },
+    paymentStatus: { type: String },
     payments: [
         {
             paymentID: { type: Schema.Types.ObjectId, ref: 'Payment' },

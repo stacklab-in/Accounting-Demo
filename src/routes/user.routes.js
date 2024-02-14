@@ -6,7 +6,7 @@ const { auth } = require('../middlewares/auth');
 const { checkPermissions } = require('../middlewares/checkPermissions');
 
 
-router.get('/getProfile', userController.getProfile).descriptor({
+router.get('/getProfile', auth, userController.getProfile).descriptor({
     name: "Get User Info",
 });
 
