@@ -68,9 +68,12 @@ router.post('/delete',
         }
     });
 
-    router.get('/payments',auth,expenditure.getPaymentsSummary).descriptor({
-        name:'List all EXPENSE/INCOME payments',
-        description:'List all EXPENSE/INCOME payments and summary'
-    })
+router.post('/payments', auth, expenditure.getPaymentsSummary).descriptor({
+    name: 'List all EXPENSE/INCOME payments',
+    body: {
+        type: 'VENDOR'
+    },
+    description: 'List all EXPENSE/INCOME payments and summary'
+})
 
 module.exports = router;

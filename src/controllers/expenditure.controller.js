@@ -195,6 +195,9 @@ const remove = async (req, res) => {
     const session = await mongoose.startSession();
     let isSuccess = false;
     let isDBTransactionInProgress = false;
+    let paymentDocument;
+    let receiptDocument;
+    let bank;
 
     try {
 
@@ -202,7 +205,7 @@ const remove = async (req, res) => {
         session.startTransaction();
         isDBTransactionInProgress = true;
 
-        const expenditure = await Expenditure.findOne({ isDeleted: false, _id: req.body.id, userId: req.user._id }).session(session);
+        const expenditure = await Expenditure.findOne({ isDeleted: false, _id: req.body.id, userId: req.user._id }).populate('payments.paymentID').session(session);
 
         if (!expenditure) {
             return res.status(404).json({ error: 'Expenditure not found!..' });
@@ -211,11 +214,44 @@ const remove = async (req, res) => {
         expenditure.isDeleted = true;
 
         // Now find for the payments
+        for (const payment of expenditure.payments) {
+            console.log({ payment })
+            paymentDocument = await Payment.findOne({ _id: payment.paymentID, isDeleted: false }).session(session);
+            if (!paymentDocument) {
+                return res.status(404).json({ error: 'Payment not found' });
+            };
+            paymentDocument.isDeleted = true;
 
-        // Save Models
-        await payment.save({ session });
-        await receipt.save({ session });
+            //  Now delete receipts
+            receiptDocument = await Receipt.findOne({ _id: payment.receiptID, isDeleted: false }).session(session);
+            if (!receiptDocument) {
+                return res.status(404).json({ error: 'Receipt not found' });
+            };
+            receiptDocument.isDeleted = true;
+
+            //  If paymentMode is not cash then we need to adjust balance in banks
+            if (payment.paymentID.paymentMode !== 'CASH') {
+                bank = await Bank.findOne({ _id: payment.paymentID.bankId, userId: req.user._id, isDeleted: false }).session(session);
+                if (!bank) {
+                    return res.status(404).json({ error: 'Bank not found' });
+                };
+                bank.balance = expenditure.type === 'EXPENSE' ? bank.balance + payment.paymentID.amount : bank.balance - payment.paymentID.amount;
+            }
+        };
+
+        // Save Models only if they exist
+        if (paymentDocument) {
+            await paymentDocument.save({ session });
+        };
+        if (receiptDocument) {
+            await receiptDocument.save({ session });
+        };
+        if (bank) {
+            await bank.save({ session });
+        }
+
         await expenditure.save({ session });
+
         // Commit the transaction
         await session.commitTransaction();
         isSuccess = true;
@@ -330,11 +366,14 @@ const recordPayment = async (req, res) => {
 
 const getPaymentsSummary = async (req, res) => {
     try {
+
+        const type = req.body.type; // VENDOR/ EXPENSE/INCOME
         // I want a object in which three keys that are cash, card,UPI and there paid amount using aggregation on payments modal
         const typeSummaryDifferedByPaymentModeTypes = await Payment.aggregate([
             {
                 $match: {
                     isDeleted: false,
+                    partyType: { $in: type },
                     userId: req.user._id
                 }
             },
@@ -347,27 +386,60 @@ const getPaymentsSummary = async (req, res) => {
         ]);
 
         //  Now i want net balance, paid amount and received amount using aggregation on expenditure modal
-        const expenditure = await Expenditure.find({ isDeleted: false, userId: req.user._id }).populate('payments.paymentID');
+        const payment = await Payment.find({ isDeleted: false, userId: req.user._id, partyType: { $in: type } });
 
         // Calculate total sales amount
-        const totalAmount = expenditure.reduce((acc, order) => acc + (order.price), 0).toFixed(2);
+        const totalAmount = payment.reduce((acc, order) => acc + (order.amount), 0);
+
+        let receivedBalance;
+        let paidBalance;
+
+
+        // if (type[0] === 'VENDOR' ) {
+        //     // Calculate total paid amount
+        //      receivedBalance = expenditure.reduce((acc, order) => {
+        //         if (order.partyType === 'CUSTOMER') {
+        //             const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
+        //             return acc + paidAmount;
+        //         }
+        //     }, 0).toFixed(2);   
+
+
+        //     // Calculate total paid amount
+        //         paidBalance = expenditure.reduce((acc, order) => {
+        //             if (order.partyType === 'EXPENSE') {
+        //                 const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
+        //                 return acc + paidAmount;
+        //             }
+        //         }, 0).toFixed(2);
+        // } else {
 
         // Calculate total paid amount
-        const totalPaidAmount = expenditure.reduce((acc, order) => {
-            const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
-            return acc + paidAmount;
-        }, 0).toFixed(2);
+         receivedBalance = payment.reduce((acc, order) => {
+            if (order.partyType === 'INCOME') {
+                return acc + order.amount;
+            }
+            return acc; 
+        }, 0);
+        
 
-        // Calculate pending amount
-        const pendingAmount = (totalAmount - totalPaidAmount).toFixed(2);
+        // Calculate total paid amount
+        paidBalance = payment.reduce((acc, order) => {
+            if (order.partyType === 'EXPENSE') {
+                return acc + order.amount;
+            }
+            return acc;
+        }, 0);
+
 
         const balanceSummary = {
-            totalAmount,
-            totalPaidAmount,
-            pendingAmount
+            totalAmount: totalAmount,
+            receivedBalance: receivedBalance,
+            paidBalance: paidBalance,
+
         };
 
-        const payments = await Payment.find({ isDeleted: false, userId: req.user._id, partyType: { $in: ['INCOME', 'EXPENSE'] } });
+        const payments = await Payment.find({ isDeleted: false, userId: req.user._id, partyType: { $in: type } });
 
         return res.status(200).json({ msg: 'Payments fetched successfully!.', data: { balanceSummary, typeSummaryDifferedByPaymentModeTypes, payments } });
     } catch (error) {

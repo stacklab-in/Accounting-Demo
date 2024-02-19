@@ -1,7 +1,7 @@
 {
-  "name": "tracking-software",
+  "name": "accounting-software",
   "version": "1.0.0",
-  "description": "Tracking Software System",
+  "description": "Accounting Software System",
   "main": "index.js",
   "scripts": {
     "start-dev": "nodemon index.js",
@@ -21,6 +21,7 @@
     "mongoose": "^8.0.2",
     "morgan": "^1.10.0",
     "nano-time": "^1.0.0",
+    "uuid": "^9.0.1",
     "winston": "^3.11.0"
   }
 }

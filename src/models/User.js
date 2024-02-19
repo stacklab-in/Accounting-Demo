@@ -12,13 +12,19 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: true,
+    },
+    mobileNumber: {
+      type: String,
+    },
+    profileImage: {
+      type: String,
     },
     userType: {
       type: String,
       required: true,
       enum: ['ADMIN', 'MANAGER']
     },
+    permissions: {},
     onBoardedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     roleId: { type: Schema.Types.ObjectId, ref: 'Role' },
     isDeleted: {

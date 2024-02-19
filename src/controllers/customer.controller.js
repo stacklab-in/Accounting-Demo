@@ -6,7 +6,6 @@ const add = async (req, res) => {
     try {
 
         let requestBody = req.body;
-        console.log("🚀 ~ add ~ requestBody:", requestBody)
 
         const existingCustomer = await Customer.findOne({ isDeleted: false, email: req.body.email });
 

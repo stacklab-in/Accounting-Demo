@@ -12,8 +12,8 @@ const address = {
 const customerSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
     name: { type: String, required: true },
-    email: { type: String, unique: true },
-    mobileNumber: { type: String, required: true },
+    email: { type: String },
+    mobileNumber: { type: String, required: true, unique: true },
     type: { type: String },
     company: {
         name: { type: String, },

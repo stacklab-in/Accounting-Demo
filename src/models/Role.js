@@ -51,13 +51,7 @@ const permissionSchema = new Schema({
 const roleSchema = new Schema({
   name: { type: String, required: true, unique: true },
   description: { type: String },
-  permissions: {
-    type: permissionSchema, default: {}
-  },
-  isDeleted: {
-    type: Boolean,
-    default: false
-  }
+  isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = model("Role", roleSchema);

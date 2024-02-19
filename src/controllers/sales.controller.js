@@ -4,8 +4,10 @@ const Receipt = require('../models/Receipt');
 const Payment = require('../models/Payment');
 const Customer = require('../models/Customer');
 const Joi = require('joi');
+
 const mongoose = require('mongoose');
 const { serverLogger } = require('../utils/loggerWinston');
+
 const { newIdForInvoice, newIdForTransaction } = require('../utils/ids');
 const Bank = require('../models/Bank');
 
@@ -23,20 +25,24 @@ const add = async (req, res) => {
         isDBTransactionInProgress = true;
 
         let reqBody = req.body;
-        console.log("🚀 ~ add ~ reqBody:", reqBody)
 
-        const amountToPay = parseFloat(reqBody.amountToPay).toFixed(2);
-        console.log("🚀 ~ add ~ amountToPay:", amountToPay)
+        const amountToPay = parseFloat(reqBody.amountToPay);
 
         // If New Customer arrives
-        if (typeof reqBody.customer !== 'object') {
+        if (typeof reqBody.customer !== 'object' || typeof reqBody.mobileNumber !== 'object') {
             console.log('creating customer...', reqBody.customer)
+            console.log('creating customer...', reqBody.mobileNumber)
             let newCustomer = {
                 name: reqBody.customer,
                 userId: req.user._id,
                 mobileNumber: `+91${reqBody.mobileNumber}`,
                 createdAt: newDate,
                 updatedAt: newDate
+            };
+            // Check customer with number exist or not if exist then give error message
+            const customerWithMobileNumber = await Customer.findOne({ userId: req.user._id, mobileNumber: `+91${reqBody.mobileNumber}`, isDeleted: false }).session(session);
+            if (customerWithMobileNumber) {
+                throw new Error("Customer with this mobile number already exist");
             };
 
             customer = new Customer(newCustomer, { session: session });
@@ -45,7 +51,6 @@ const add = async (req, res) => {
                 throw new Error("Error while creating customer");
             };
 
-            await customer.save({ session });
 
         } else {
             // If Existing Customer
@@ -146,6 +151,8 @@ const add = async (req, res) => {
         // Now create a sales order 
         let salesOrder = new Sales(sales, { session });
 
+
+        if (customer) await customer.save({ session });
         await payment.save({ session });
         await receipt.save({ session });
         await salesOrder.save({ session });

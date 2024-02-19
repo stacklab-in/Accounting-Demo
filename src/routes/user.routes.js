@@ -10,18 +10,6 @@ router.get('/getProfile', auth, userController.getProfile).descriptor({
     name: "Get User Info",
 });
 
-
-// USER
-router.post('/add', checkPermissions('user.u'), userController.add).descriptor({
-    name: "Add a user",
-    body: {
-        name: "name",
-        email: "email",
-        password: "password",
-        roles: ["roleId"]
-    },
-});
-
 router.post('/login', userController.login).descriptor({
     name: "Login a  user",
     body: { email: "email", password: "" },
@@ -32,9 +20,17 @@ router.post('/update', auth, userController.update).descriptor({
     body: {
         id: "mongoID",
         name: "name",
-        email: "email",
-        password: "password",
-        roles: ["roleId"]
+        mobileNumber: "mobileNumber",
+    },
+});
+
+router.post('/rolesandpermissions/update', auth, userController.updateRolesAndDetails).descriptor({
+    name: "Update a user",
+    body: {
+        id: "mongoID",
+        name: "name",
+        role: "roleId",
+        permissions: []
     },
 });
 
@@ -43,8 +39,15 @@ router.post('/delete', auth, userController.delete).descriptor({
     body: { id: "MongoID" },
 });
 
-router.post('/list', auth, checkPermissions(), userController.list).descriptor({
+router.post('/list', auth, userController.list).descriptor({
     name: "List all users",
+});
+
+router.post('/invite', auth, userController.sendInviteLink).descriptor({
+    name: "Send Invitation links to users",
+    body: {
+        users: []
+    }
 });
 
 
