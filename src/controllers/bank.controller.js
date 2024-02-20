@@ -112,7 +112,7 @@ const transferFunds = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const banks = await BankAccount.find({ isDeleted: false, userId: req.user._id });
+        const banks = await BankAccount.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 });
         res.status(200).json({ msg: 'Banks List', data: banks });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

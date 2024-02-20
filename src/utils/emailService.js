@@ -1,26 +1,19 @@
 // emailService.js
 
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+console.log("🚀 ~ sgMail:", sgMail)
 
-// Create a transporter using your email service provider's SMTP settings
-const transporter = nodemailer.createTransport({
-    host: process.env.MAIL_HOSTNAME,
-    port: process.env.MAIL_PORT,
-    secure: true,
-    auth: {
-        user: process.env.MAIL_USER, // Your email address
-        pass: process.env.MAIL_PASSWORD // Your email password or app password if using Gmail
-    }
-});
 
 // Function to send email
 const sendEmail = async (toEmail, inviteLink) => {
     try {
         // Send email
-        const info = await transporter.sendMail({
+        const info = await sgMail.send({
             from: process.env.MAIL_USER, // Sender's email address
             to: toEmail, // Recipient's email address
             subject: 'Invitation to join our platform', // Email subject
+            text: `Hello, You have been invited to join our platform. Click on the following link to create your account: ${inviteLink}. Thank you!`,
             html: `<p>Hello,</p><p>You have been invited to join our platform. Click on the following link to create your account:</p><p><a href="${inviteLink}">${inviteLink}</a></p><p>Thank you!</p>` // Email body
         });
         console.log('Email sent:', info);

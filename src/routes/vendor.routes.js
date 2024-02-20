@@ -61,14 +61,14 @@ router.post('/list',
     auth,
     //  checkPermissions('role.list),
     vendor.list).descriptor({
-        name: "List all roles",
+        name: "List all Vendors",
     });
 
 router.post('/delete',
     auth,
     //  checkPermissions('role.list),
     vendor.remove).descriptor({
-        name: "List all roles",
+        name: "Remove a vendor",
         body: {
             id: 'vendorId'
         }

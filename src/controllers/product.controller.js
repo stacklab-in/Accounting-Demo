@@ -54,7 +54,7 @@ const update = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const products = await Product.find({ isDeleted: false, userId: req.user._id, quantity: { $gt: 0 } }).populate('category');
+        const products = await Product.find({ isDeleted: false, userId: req.user._id, quantity: { $gt: 0 } }).sort({ createdAt: -1 }).populate('category');
         return res.status(200).json({ msg: 'Products fetched successfully!.', data: products });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

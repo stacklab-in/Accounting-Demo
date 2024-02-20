@@ -57,7 +57,7 @@ module.exports.update = async (req, res) => {
 
 module.exports.list = async (req, res) => {
     try {
-        const ProductCategories = await ProductCategory.find({ isDeleted: false, userId: req.user._id });
+        const ProductCategories = await ProductCategory.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 });
         return res.status(200).json({ msg: 'Product Categories fetched successfully!.', data: ProductCategories });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

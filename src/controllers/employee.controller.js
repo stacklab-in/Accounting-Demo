@@ -110,6 +110,17 @@ const getAllEmployees = async (req, res) => {
                     address: { $arrayElemAt: ["$employeeObj.address", 0] },
                     dateOfBirth: { $arrayElemAt: ["$employeeObj.dateOfBirth", 0] }
                 }
+            },
+            {
+                $lookup: {
+                    from: "employees",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "createdAtObj"
+                }
+            },
+            {
+                $sort: { "createdAtObj.createdAt": -1 }
             }
         ]);
 

@@ -183,7 +183,7 @@ const update = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const expenditureArray = await Expenditure.find({ isDeleted: false, userId: req.user._id }).populate('payments.paymentID');
+        const expenditureArray = await Expenditure.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 }).populate('payments.paymentID');
         return res.status(200).json({ msg: 'Expenses fetched successfully!.', data: expenditureArray });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

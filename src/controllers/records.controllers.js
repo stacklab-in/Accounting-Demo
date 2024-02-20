@@ -58,6 +58,9 @@ const getAllReceipts = async (req, res) => {
                     customerName: 1,
                     createdAt: 1
                 }
+            },
+            {
+                $sort: { createdAt: -1 } // Sort by createdAt in descending order
             }
         ]);
 
@@ -72,7 +75,7 @@ const getAllReceipts = async (req, res) => {
 
 const getAllPayments = async (req, res) => {
     try {
-        const payments = await Payment.find({ isDeleted: false, userId: req.user._id });
+        const payments = await Payment.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 });
         return res.status(200).json({ msg: 'Payments fetched successfully!.', data: payments });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

@@ -1,8 +1,7 @@
-const Sales = require('../models/SalesOrder');
+const Purchase = require('../models/PurchaseOrder');
 const Product = require('../models/Product');
 const Receipt = require('../models/Receipt');
 const Payment = require('../models/Payment');
-const Customer = require('../models/Customer');
 const Joi = require('joi');
 
 const mongoose = require('mongoose');
@@ -10,12 +9,12 @@ const { serverLogger } = require('../utils/loggerWinston');
 
 const { newIdForInvoice, newIdForTransaction } = require('../utils/ids');
 const Bank = require('../models/Bank');
+const Vendor = require('../models/Vendor');
 
 const add = async (req, res) => {
     const session = await mongoose.startSession();
     let isSuccess = false;
     let isDBTransactionInProgress = false;
-    let customer;
     let invoiceNumber = newIdForInvoice();
     const newDate = new Date();
 
@@ -28,38 +27,12 @@ const add = async (req, res) => {
 
         const amountToPay = parseFloat(reqBody.amountToPay);
 
-        // If New Customer arrives
-        if (typeof reqBody.mobileNumber === 'string') {
-            console.log('creating new customer...', reqBody.customer)
-            let newCustomer = {
-                name: reqBody.customer,
-                userId: req.user._id,
-                mobileNumber: `+91${reqBody.mobileNumber}`,
-                createdAt: newDate,
-                updatedAt: newDate
-            };
-            // Check customer with number exist or not if exist then give error message
-            const customerWithMobileNumber = await Customer.findOne({ userId: req.user._id, mobileNumber: `+91${reqBody.mobileNumber}`, isDeleted: false }).session(session);
-            if (customerWithMobileNumber) {
-                throw new Error("Customer with this mobile number already exist");
-            };
+        // If Existing Customer
+        let vendor = await Vendor.findOne({ userId: req.user._id, _id: reqBody.vendor._id, isDeleted: false }).session(session);
 
-            customer = new Customer(newCustomer, { session: session });
-
-            if (!customer) {
-                throw new Error("Error while creating customer");
-            };
-
-
-        } else {
-            // If Existing Customer
-            customer = await Customer.findOne({ userId: req.user._id, _id: reqBody.mobileNumber._id, isDeleted: false }).session(session);
-
-            if (!customer) {
-                throw new Error("Customer not found");
-            }
+        if (!vendor) {
+            throw new Error("Vendor not found");
         }
-
 
         // First take all products decrease the quantity of them 
         for (let product of reqBody.products) {
@@ -70,7 +43,7 @@ const add = async (req, res) => {
             if (productData.quantity < product.quantity) {
                 throw new Error("Product quantity is less than requested");
             };
-            productData.quantity -= product.quantity;
+            productData.quantity += product.quantity;
             await productData.save({ session });
         };
 
@@ -79,8 +52,8 @@ const add = async (req, res) => {
             amount: amountToPay,
             paymentMode: reqBody.paymentMode,
             paymentStatus: reqBody.paymentStatus,
-            paymentType: 'RECEIVED',
-            partyType: 'CUSTOMER',
+            paymentType: 'PAID',
+            partyType: 'VENDOR',
             invoiceNumber,
             createdAt: newDate,
             updatedAt: newDate
@@ -101,7 +74,7 @@ const add = async (req, res) => {
             paymentId: payment._id,
             invoiceNumber,
             paymentStatus: reqBody.paymentStatus,
-            partyType: 'CUSTOMER',
+            partyType: 'VENDOR',
             createdAt: newDate,
             updatedAt: newDate
         }, { session });
@@ -113,17 +86,17 @@ const add = async (req, res) => {
             if (!bank) {
                 return res.status(404).json({ error: 'Bank not found' });
             };
-            bank.balance = bank.balance + parseFloat(reqBody.amountToPay);
+            bank.balance = bank.balance - parseFloat(reqBody.amountToPay);
             await bank.save({ session });
         }
 
-        const sales = {
+        const purchase = {
             userId: req.user._id,
-            customerId: customer._id,
-            salesManId: reqBody.salesMan._id,
+            vendorId: vendor._id,
             transactionId: newIdForTransaction(),
-            invoiceDate: new Date(),
-            invoiceDueDate: new Date(reqBody.invoiceDueDate),
+            orderType: 'PURCHASE',
+            purchaseDate: new Date(),
+            purchaseDueDate: new Date(reqBody.purchaseDueDate),
             products: reqBody.products.map(product => ({
                 name: product.product.name,
                 quantity: product.quantity,
@@ -147,11 +120,11 @@ const add = async (req, res) => {
             createdAt: newDate,
             updatedAt: newDate
         };
-        // Now create a sales order 
-        let salesOrder = new Sales(sales, { session });
+        // Now create a purchase order 
+        let salesOrder = new Purchase(purchase, { session });
 
 
-        if (customer) await customer.save({ session });
+        await vendor.save({ session });
         await payment.save({ session });
         await receipt.save({ session });
         await salesOrder.save({ session });
@@ -160,7 +133,7 @@ const add = async (req, res) => {
         await session.commitTransaction();
         isSuccess = true;
 
-        return res.status(200).json({ msg: 'Sales order created successfully' });
+        return res.status(200).json({ msg: 'Purchase order created successfully' });
 
     } catch (error) {
         console.log({ error });
@@ -175,8 +148,8 @@ const add = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const salesOrders = await Sales.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 }).populate('customerId salesManId payments.paymentID');
-        return res.status(200).json({ msg: 'Sales orders fetched successfully!.', data: salesOrders });
+        const purchaseOrders = await Purchase.find({ isDeleted: false, userId: req.user._id, orderType: 'PURCHASE' }).sort({ createdAt: -1 }).populate('vendorId  payments.paymentID');
+        return res.status(200).json({ msg: 'Purchase orders fetched successfully!.', data: purchaseOrders });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
         return res.status(500).json({ error: 'Internal Server Error' });
@@ -189,7 +162,7 @@ const recordPayment = async (req, res) => {
     let isDBTransactionInProgress = false;
 
     const schema = Joi.object({
-        salesOrderId: Joi.string().required(),
+        id: Joi.string().required(),
         amountToPay: Joi.number().positive().required(),
         paymentDate: Joi.date().required(),
         paymentMode: Joi.string().valid('CASH',
@@ -211,6 +184,7 @@ const recordPayment = async (req, res) => {
         isDBTransactionInProgress = true;
 
         const requestBody = req.body;
+        console.log("🚀 ~ recordPayment ~ requestBody:", requestBody)
 
         const { error } = schema.validate(requestBody);
 
@@ -220,12 +194,12 @@ const recordPayment = async (req, res) => {
 
         const amountToPay = parseFloat(requestBody.amountToPay);
 
-        const salesOrder = await Sales.findOne({ _id: requestBody.salesOrderId, userId: req.user._id, isDeleted: false }).session(session);
-        if (!salesOrder) {
-            return res.status(400).json({ error: 'Sales order not found or may be deleted!.' });
+        const purchaseOrder = await Purchase.findOne({ _id: requestBody.id, userId: req.user._id, isDeleted: false }).session(session);
+        if (!purchaseOrder) {
+            return res.status(400).json({ error: 'Purchase order not found or may be deleted!.' });
         };
 
-        const paymentStatus = salesOrder.remainingAmount - salesOrder.amountToPay === 0 ? 'PAID' : 'PENDING';
+        const paymentStatus = purchaseOrder.remainingAmount - purchaseOrder.amountToPay === 0 ? 'PAID' : 'PENDING';
 
         // Now create payment
         const payment = new Payment({
@@ -233,9 +207,9 @@ const recordPayment = async (req, res) => {
             amount: amountToPay.toFixed(2),
             paymentMode: requestBody.paymentMode,
             paymentStatus,
-            paymentType: 'RECEIVED',
-            partyType: 'CUSTOMER',
-            invoiceNumber: salesOrder.invoiceNumber,
+            paymentType: 'PAID',
+            partyType: 'VENDOR',
+            invoiceNumber: purchaseOrder.invoiceNumber,
             createdAt: new Date(requestBody.paymentDate)
         }, { session: session });
 
@@ -246,39 +220,40 @@ const recordPayment = async (req, res) => {
             if (!bank) {
                 return res.status(404).json({ error: 'Bank not found' });
             }
-            bank.balance = bank.balance + parseFloat(requestBody.amountToPay).toFixed(2);
+            bank.balance = bank.balance - parseFloat(requestBody.amountToPay).toFixed(2);
             await bank.save({ session });
         };
+
         //  Now Create receipt for it 
         const receipt = new Receipt({
             userId: req.user._id,
             amount: amountToPay.toFixed(2),
             paymentId: payment._id,
-            invoiceNumber: salesOrder.invoiceNumber,
+            invoiceNumber: purchaseOrder.invoiceNumber,
             paymentStatus,
-            partyType: 'CUSTOMER'
+            partyType: 'VENDOR'
         }, { session: session });
 
-        // Now Update Sales order with payments and remaining balance
-        salesOrder.remainingAmount -= amountToPay.toFixed(2);
-        salesOrder.payments.push({
+        // Now Update Purchase order with payments and remaining balance
+        purchaseOrder.remainingAmount -= amountToPay.toFixed(2);
+        purchaseOrder.payments.push({
             paymentID: payment._id,
             receiptID: receipt._id,
             amount: payment.amount,
             paymentDate: new Date(requestBody.paymentDate)
         });
-        salesOrder.paymentStatus = paymentStatus
+        purchaseOrder.paymentStatus = paymentStatus
 
         // Now Save all the payments and sales order
         await payment.save({ session: session });
         await receipt.save({ session: session });
-        await salesOrder.save({ session: session });
+        await purchaseOrder.save({ session: session });
 
         // Commit the transaction After all work done
         await session.commitTransaction();
         isSuccess = true;
 
-        return res.status(200).json({ msg: 'Sales order payment recorded successfully' });
+        return res.status(200).json({ msg: 'Purchase order payment recorded successfully' });
 
     } catch (error) {
         console.log({ error });
@@ -291,28 +266,27 @@ const recordPayment = async (req, res) => {
     };
 };
 
-const getSummaryOfSales = async (req, res) => {
+const getSummaryOfPurchase = async (req, res) => {
     try {
-        const salesOrders = await Sales.find({ isDeleted: false, userId: req.user._id });
+        const purchaseOrder = await Purchase.find({ orderType: 'PURCHASE', isDeleted: false, userId: req.user._id });
 
         // Calculate total sales amount
-        const totalSalesAmount = salesOrders.reduce((acc, order) => acc + order.totalAmount, 0).toFixed(2);
+        const totalPurchaseAmount = purchaseOrder.reduce((acc, order) => acc + order.totalAmount, 0).toFixed(2);
 
         // Calculate total paid amount
-        const totalPaidAmount = salesOrders.reduce((acc, order) => {
+        const totalPaidAmount = purchaseOrder.reduce((acc, order) => {
             const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
             return acc + paidAmount;
         }, 0).toFixed(2);
 
         // Calculate pending amount
-        const pendingAmount = (totalSalesAmount - totalPaidAmount).toFixed(2);
+        const pendingAmount = (totalPurchaseAmount - totalPaidAmount).toFixed(2);
 
         const summary = {
-            totalSalesAmount: Number(totalSalesAmount ?? 0),
+            totalPurchaseAmount: Number(totalPurchaseAmount ?? 0),
             totalPaidAmount: Number(totalPaidAmount ?? 0),
             pendingAmount: Number(pendingAmount ?? 0)
         };
-
 
         res.status(200).json({ msg: 'Summary fetched successfully', data: summary });
     } catch (error) {
@@ -324,19 +298,18 @@ const getSummaryOfSales = async (req, res) => {
 const update = async (req, res) => {
     try {
         const bodyData = req.body;
-        console.log("🚀 ~ update ~ bodyData:", bodyData)
 
-        const salesOrder = await Sales.findOne({ _id: bodyData.id, userId: req.user._id });
+        const purchaseOrder = await Purchase.findOne({ _id: bodyData.id, userId: req.user._id });
 
-        if (!salesOrder) {
-            return res.status(400).json({ error: 'Sales order not found!' });
+        if (!purchaseOrder) {
+            return res.status(400).json({ error: 'Purchase order not found!' });
         };
 
-        salesOrder.paymentStatus = bodyData.paymentStatus;
-        salesOrder.invoiceDueDate = new Date(bodyData.invoiceDueDate);
-        await salesOrder.save();
+        purchaseOrder.paymentStatus = bodyData.paymentStatus;
+        purchaseOrder.invoiceDueDate = new Date(bodyData.purchaseDueDate);
+        await purchaseOrder.save();
 
-        return res.status(200).json({ msg: 'Sales orders updated successfully!.' });
+        return res.status(200).json({ msg: 'Purchase orders updated successfully!.' });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
         return res.status(500).json({ error: 'Internal Server Error' });
@@ -352,14 +325,14 @@ const remove = async (req, res) => {
         session.startTransaction();
         isDBTransactionInProgress = true;
 
-        const salesOrder = await Purchase.findOne({ isDeleted: false, _id: req.body.id, userId: req.user._id }).session(session);
+        const purchaseOrder = await Purchase.findOne({ isDeleted: false, _id: req.body.id, userId: req.user._id }).session(session);
 
-        if (!salesOrder) {
+        if (!purchaseOrder) {
             return res.status(404).json({ error: 'Purchase order not found!..' });
         };
 
         // Delete payments and receipts
-        const paymentIds = salesOrder.payments.map(payment => payment.paymentID);
+        const paymentIds = purchaseOrder.payments.map(payment => payment.paymentID);
 
         // Update Payments
         await Payment.updateMany(
@@ -374,14 +347,14 @@ const remove = async (req, res) => {
         ).session(session);
 
 
-        salesOrder.isDeleted = true;
-        await salesOrder.save({ session });
+        purchaseOrder.isDeleted = true;
+        await purchaseOrder.save({ session });
 
         // Commit the transaction After all work done
         await session.commitTransaction();
         isSuccess = true;
 
-        return res.status(200).json({ msg: 'Sales order deleted successfully!..' });
+        return res.status(200).json({ msg: 'Purchase order deleted successfully!..' });
     } catch (error) {
         console.log({ error });
         serverLogger("error", { error: error.stack || error.toString() });
@@ -393,4 +366,4 @@ const remove = async (req, res) => {
     };
 };
 
-module.exports = { add, list, recordPayment, getSummaryOfSales, update, remove };
+module.exports = { add, list, recordPayment, getSummaryOfPurchase, update, remove };

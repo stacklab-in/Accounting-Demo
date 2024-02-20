@@ -57,7 +57,7 @@ const update = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const customers = await Customer.find({ isDeleted: false, userId: req.user._id });
+        const customers = await Customer.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 });
         return res.status(200).json({ msg: 'Customers fetched successfully!.', data: customers });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

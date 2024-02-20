@@ -56,7 +56,7 @@ const update = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const vendors = await Vendor.find({ isDeleted: false, userId: req.user._id });
+        const vendors = await Vendor.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 });
         return res.status(200).json({ msg: 'Vendors fetched successfully!.', data: vendors });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });

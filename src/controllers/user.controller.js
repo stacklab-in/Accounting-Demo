@@ -263,7 +263,7 @@ module.exports.getProfile = async (req, res) => {
 module.exports.list = async (req, res) => {
     try {
         // delete the user
-        const usersList = await User.find({ isDeleted: false }).populate('roleId');
+        const usersList = await User.find({ isDeleted: false }).sort({ createdAt: -1 }).populate('roleId');
 
         return res.status(200).json({
             status: true,
@@ -324,7 +324,6 @@ module.exports.sendInviteLink = async (req, res) => {
             newUser.roleId = role._id;
 
             await newUser.save();
-            console.log("🚀 ~ module.exports.sendInviteLink= ~ newUser:", newUser)
 
             // Generate a unique token
             const uniqueToken = uuidv4();
@@ -342,11 +341,9 @@ module.exports.sendInviteLink = async (req, res) => {
             });
             await passwordCreateRecord.save();
 
-            console.log("🚀 ~ module.exports.sendInviteLink= ~ passwordCreateRecord:", passwordCreateRecord)
             // Send the invite link to the user
             const inviteLink = `http://localhost:3033/auth/jwt/create-password?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
-            // await sendEmail(user.email, inviteLink);
-            console.log("🚀 ~ module.exports.sendInviteLink= ~ inviteLink:", inviteLink)
+            await sendEmail(user.email, inviteLink);
         };
 
 

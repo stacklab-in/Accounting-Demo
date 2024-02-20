@@ -59,7 +59,7 @@ const list = async (req, res) => {
         if (req.body.status) {
             query.status = { $in: req.body.status };
         }
-        const offers = await Offer.find(query);
+        const offers = await Offer.find(query).sort({ createdAt: -1 });
         return res.status(200).json({ msg: 'Offers fetched successfully!.', data: offers });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
