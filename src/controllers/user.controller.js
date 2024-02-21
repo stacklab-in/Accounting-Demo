@@ -89,6 +89,14 @@ module.exports.login = async (req, res) => {
             return res.status(404).json({ error: "Invalid credentials.." });
         };
 
+        if (user.isDeleted) {
+            return res.status(404).json({ error: "User is deleted!" });
+        };
+
+        if (user.isActive === false) {
+            return res.status(404).json({ error: "User is not active!" });
+        };
+        
         // Generating JWT  
         let accessToken = jwt.sign({ userId: user._id.toString(), email: user.email }, process.env.APP_SECRET, { expiresIn: '7d' });
 
