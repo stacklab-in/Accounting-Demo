@@ -4,7 +4,7 @@ const PasswordCreateRecord = require("../models/PasswordCreateRecord");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const { serverLogger } = require('../utils/loggerWinston');
-// const { sendEmail } = require('../utils/emailService');
+const { sendEmail } = require('../utils/emailService');
 const { v4: uuidv4 } = require('uuid');
 const { permissionForAdmin, permissionForManager } = require("../utils/constants");
 // const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
@@ -342,7 +342,8 @@ module.exports.sendInviteLink = async (req, res) => {
             await passwordCreateRecord.save();
 
             // Send the invite link to the user
-            const inviteLink = `http://localhost:3033/auth/jwt/create-password?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
+            // const inviteLink = `http://localhost:3033/auth/jwt/register?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
+            const inviteLink = `https://accounting-demo.vercel.app/auth/jwt/register?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
             await sendEmail(user.email, inviteLink);
         };
 
