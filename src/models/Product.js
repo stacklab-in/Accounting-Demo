@@ -7,7 +7,7 @@ const productSchema = new Schema({
     category: { type: Schema.Types.ObjectId, ref: 'ProductCategory' },
     purchasePrice: { type: Number, required: true },
     sellingPrice: { type: Number, required: true },
-    gstValue: { type: Number, required: true },
+    gstValue: { type: String, required: true },
     quantity: { type: Number, required: true },
     barcode: { type: Number, required: true },
     isDeleted: {

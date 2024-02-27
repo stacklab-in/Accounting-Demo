@@ -30,5 +30,8 @@ router.post('/details', auth, productBarcodeValueController.fetchBarcodeValues).
     name: "Fetch Barcode Values",
 });
 
+router.post('/list', auth, productBarcodeValueController.listAllProductsWithBarcodes).descriptor({
+    name: "List all barcodes Values",
+});
 
 module.exports = router;

@@ -8,7 +8,8 @@ const purchaseOrderSchema = new Schema({
     transactionId: { type: String, required: true },
     orderType: { type: String, enum: purchase.orderType },
     purchaseDate: { type: Date, required: true },
-    purchaseDueDate: { type: Date, required: true },
+    // purchaseDueDate: { type: Date, required: true },
+    referenceNumber: { type: String },
     invoiceNumber: { type: String, required: true },
     products: [
         {
@@ -21,10 +22,6 @@ const purchaseOrderSchema = new Schema({
         }
     ],
     discount: {
-        offer: {
-            id: {},
-            discount: { type: Number }
-        },
         productDiscount: { type: Number }
     },
     totalDiscount: { type: Number },

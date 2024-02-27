@@ -62,7 +62,7 @@ const getAllEmployees = async (req, res) => {
             {
                 $lookup: {
                     from: "salesorders",
-                    let: { employeeId: "$_id"},
+                    let: { employeeId: "$_id" },
                     pipeline: [
                         {
                             $match: {
@@ -108,7 +108,8 @@ const getAllEmployees = async (req, res) => {
                     soldQuantities: { $ifNull: [{ $arrayElemAt: ["$salesData.totalSold", 0] }, 0] },
                     totalSales: { $ifNull: [{ $arrayElemAt: ["$salesData.totalAmount", 0] }, 0] },
                     address: { $arrayElemAt: ["$employeeObj.address", 0] },
-                    dateOfBirth: { $arrayElemAt: ["$employeeObj.dateOfBirth", 0] }
+                    dateOfBirth: { $arrayElemAt: ["$employeeObj.dateOfBirth", 0] },
+                    attendance: 1
                 }
             },
             {
@@ -168,6 +169,21 @@ const updateEmployee = async (req, res) => {
     }
 };
 
+const getSalesHistory = async (req, res) => {
+    try {
+
+        if (!req.body.employeeId) {
+            return res.status(400).json({ error: 'Employee Id is required' });
+        };
+
+        const salesHistory = await SalesOrder.find({ userId: req.user._id, salesManId: req.body.employeeId, isDeleted: false }).populate('customerId payments.paymentID');
+
+        return res.status(200).json({ msg: 'Sales History', data: salesHistory });
+    } catch (error) {
+        serverLogger("error", { error: error.stack || error.toString() });
+        return res.status(500).json({ error: 'Internal Server Error' });
+    };
+};
 // Delete an employee
 const deleteEmployee = async (req, res) => {
     try {
@@ -182,10 +198,80 @@ const deleteEmployee = async (req, res) => {
     }
 };
 
+const markAttendance = async (req, res) => {
+    const { employeeId, attendance } = req.body;
+    try {
+        // // Find the employee by ID
+        // const employee = await Employee.findOne({ _id: employeeId, isDeleted: false });
+
+        // if (!employee) {
+        //     return res.status(404).json({ error: 'Employee not found!' });
+        // };
+
+        const updates = {};
+
+        // Iterate over the dates in the attendance object
+        for (let date in attendance) {
+            if (attendance[date] === 'present') {
+                // If the current attendance is marked as present,
+                // check if there was a previous entry for the same date marked as absent
+                if (updates[`${date}`] === 'absent') {
+                    // If so, remove the previous entry for the same date marked as absent
+                    updates.$unset = updates.$unset || {};
+                    updates.$unset[`${date}`] = '';
+                }
+            } else {
+                // If the current attendance is marked as absent, simply update the employee's attendance
+                updates[`${date}`] = attendance[date];
+            }
+        };
+
+
+        // // Iterate over the dates in the attendance object
+        // for (let date in attendance) {
+        //     if (attendance[date] === 'present') {
+        //         // If the current attendance is marked as present, 
+        //         // check if there was a previous entry for the same date marked as absent
+        //         if (employee.attendance[date] === 'absent') {
+        //             // If so, delete the previous entry for the same date marked as absent
+        //             delete employee.attendance[date];
+        //         }
+        //     } else {
+        //         // If the current attendance is marked as absent, simply update the employee's attendance
+        //         employee.attendance[date] = attendance[date];
+        //     }
+        // };
+        // console.log(employee);
+        // Save the updated employee data
+        // await employee.save();
+
+        // res.status(200).json({ message: 'Attendance marked successfully' });
+        // Update the attendance directly in the database
+        const result = await Employee.findOneAndUpdate(
+            { _id: employeeId, isDeleted: false },
+            { $set: { attendance: updates } }, // Corrected syntax
+            { new: true }
+        );
+
+        // Check if the document was found and updated
+        if (!result) {
+            return res.status(404).json({ error: 'Employee not found!' });
+        }
+
+        res.status(200).json({ message: 'Attendance marked successfully' });
+    } catch (error) {
+        console.error('Error marking attendance:', error);
+        serverLogger("error", { error: error.stack || error.toString() });
+        res.status(500).json({ error: 'Failed to mark attendance' });
+    }
+};
+
 module.exports = {
     createEmployee,
     getAllEmployees,
     getEmployeeById,
+    getSalesHistory,
     updateEmployee,
-    deleteEmployee
+    deleteEmployee,
+    markAttendance
 };

@@ -96,7 +96,7 @@ module.exports.login = async (req, res) => {
         if (user.isActive === false) {
             return res.status(404).json({ error: "User is not active!" });
         };
-        
+
         // Generating JWT  
         let accessToken = jwt.sign({ userId: user._id.toString(), email: user.email }, process.env.APP_SECRET, { expiresIn: '7d' });
 
@@ -271,7 +271,7 @@ module.exports.getProfile = async (req, res) => {
 module.exports.list = async (req, res) => {
     try {
         // delete the user
-        const usersList = await User.find({ isDeleted: false }).sort({ createdAt: -1 }).populate('roleId');
+        const usersList = await User.find({ isDeleted: false, isActive: true }).sort({ createdAt: -1 }).populate('roleId');
 
         return res.status(200).json({
             status: true,
@@ -291,7 +291,15 @@ module.exports.list = async (req, res) => {
 };
 
 module.exports.sendInviteLink = async (req, res) => {
+    const session = await mongoose.startSession();
+    let isSuccess = false;
+    let isDBTransactionInProgress = false;
     try {
+
+        // Start transaction
+        session.startTransaction();
+        isDBTransactionInProgress = true;
+
         const requestBody = req.body;
 
         if (!requestBody.users || requestBody.users.length === 0) {
@@ -306,7 +314,7 @@ module.exports.sendInviteLink = async (req, res) => {
         for (let user of requestBody.users) {
             const existingUser = await User.findOne({ email: user.email });
             if (existingUser) {
-                return response.status(400).json({
+                return res.status(400).json({
                     status: false,
                     error: `User with email ${user.email} is already present in the system`
                 });
@@ -350,11 +358,13 @@ module.exports.sendInviteLink = async (req, res) => {
             await passwordCreateRecord.save();
 
             // Send the invite link to the user
-            // const inviteLink = `http://localhost:3033/auth/jwt/register?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
-            const inviteLink = `https://accounting-demo.vercel.app/auth/jwt/register?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
+            const inviteLink = `http://localhost:3033/auth/jwt/create-password?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
             await sendEmail(user.email, inviteLink);
         };
 
+        // Commit the transaction
+        await session.commitTransaction();
+        isSuccess = true;
 
         return res.status(200).json({
             status: true,
@@ -362,8 +372,12 @@ module.exports.sendInviteLink = async (req, res) => {
             data: {}
         });
 
-    } catch (err) {
-        serverLogger("error", { error: err.stack || err.toString() });
-        return res.status(500).json({ status: false, error: 'INTERNAL SERVER ERROR' });
-    }
+    } catch (error) {
+        serverLogger("error", { error: error.stack || error.toString() });
+        res.status(400).json({ error: error.toString() });
+    } finally {
+        isSuccess ? undefined : (isDBTransactionInProgress ? await session.abortTransaction() : undefined);
+        // End the session
+        session.endSession();
+    };
 }

@@ -16,7 +16,10 @@ const add = async (req, res) => {
     let isSuccess = false;
     let isDBTransactionInProgress = false;
     let customer;
-    let invoiceNumber = newIdForInvoice();
+    // Generate Invoice Number Based on previous number plus one 
+    const { invoiceNumber: lastInvoiceNumber } = await Sales.findOne({ isDeleted: false }, {}, { sort: { 'createdAt': -1 } }) || { invoiceNumber: 'SINV-0' };
+    const incrementedNumber = (parseInt(lastInvoiceNumber.slice(5), 10) + 1).toString();
+    const invoiceNumber = 'SINV-' + incrementedNumber;
     const newDate = new Date();
 
     try {
@@ -123,14 +126,15 @@ const add = async (req, res) => {
             salesManId: reqBody.salesMan._id,
             transactionId: newIdForTransaction(),
             invoiceDate: new Date(),
-            invoiceDueDate: new Date(reqBody.invoiceDueDate),
+            // invoiceDueDate: new Date(reqBody.invoiceDueDate),
             products: reqBody.products.map(product => ({
                 name: product.product.name,
                 quantity: product.quantity,
                 sellingPrice: product.sellingPrice,
                 gstValue: product.product.gstValue,
                 discount: product.discount,
-                netAmount: product.quantity * product.sellingPrice
+                netAmount: product.quantity * product.sellingPrice,
+                productID: product.product._id
             })),
             discount: reqBody.discount,
             totalDiscount: reqBody.totalDiscount,
@@ -225,7 +229,7 @@ const recordPayment = async (req, res) => {
             return res.status(400).json({ error: 'Sales order not found or may be deleted!.' });
         };
 
-        const paymentStatus = salesOrder.remainingAmount - salesOrder.amountToPay === 0 ? 'PAID' : 'PENDING';
+        const paymentStatus = salesOrder.remainingAmount - amountToPay === 0 ? 'PAID' : 'PENDING';
 
         // Now create payment
         const payment = new Payment({
@@ -322,25 +326,176 @@ const getSummaryOfSales = async (req, res) => {
 };
 
 const update = async (req, res) => {
+    const session = await mongoose.startSession();
+    let isSuccess = false;
+    let isDBTransactionInProgress = false;
+    let newDate = new Date();
+
     try {
+        // Start transaction
+        session.startTransaction();
+        isDBTransactionInProgress = true;
+
         const bodyData = req.body;
         console.log("🚀 ~ update ~ bodyData:", bodyData)
-
-        const salesOrder = await Sales.findOne({ _id: bodyData.id, userId: req.user._id });
+        let payment;
+        let receipt;
+        let bank;
+        const amountToPay = parseFloat(bodyData.amountToPay)
+        const salesOrder = await Sales.findOne({ _id: bodyData.id, userId: req.user._id, isDeleted: false }).session(session);
 
         if (!salesOrder) {
             return res.status(400).json({ error: 'Sales order not found!' });
         };
 
-        salesOrder.paymentStatus = bodyData.paymentStatus;
-        salesOrder.invoiceDueDate = new Date(bodyData.invoiceDueDate);
-        await salesOrder.save();
+
+        //  Check products first and manage quantity of them 
+        for (let product of salesOrder.products) {
+            const updatedProduct = bodyData.products.find(p => p.product.name === product.name);
+            if (!updatedProduct) {
+                console.log(product)
+                // Product exists in existing sales order but not in the updated one, add back the quantity
+                const productData = await Product.findOne({ userId: req.user._id, _id: product.productID, isDeleted: false }).session(session);
+                if (productData) {
+                    console.log(`product Quantity Before ${productData.name}`, productData.quantity)
+                    productData.quantity += product.quantity;
+                    console.log(`product Quantity After ${productData.name}`, productData.quantity)
+                    // await productData.save({session});
+                } else {
+                    return res.status(400).json({ error: 'Product not found!' });
+                }
+            } else {
+                console.log('existing product', product)
+                // Product exists in both orders, compare quantities
+                const diff = updatedProduct.quantity - product.quantity;
+                console.log("🚀 ~ update ~ diff:", diff)
+                if (diff !== 0) {
+                    const productData = await Product.findOne({ userId: req.user._id, _id: product.productID, isDeleted: false }).session(session);
+                    if (productData) {
+                        console.log('product Data', productData)
+                        console.log('Difference in quantity', diff)
+                        if (diff > 0) {
+                            console.log('Difference is greater decresing from inventory', diff)
+                            // If updated quantity is higher, decrease from inventory
+                            productData.quantity -= diff;
+                        } else {
+                            console.log('Difference is less increasing in inventory', diff)
+                            // If updated quantity is lower, increase inventory
+                            productData.quantity += Math.abs(diff);
+                        }
+                        // await productData.save({session});
+                    }
+                }
+            }
+        };
+
+        // Decrease quantity for new products
+        for (let product of bodyData.products) {
+            const existingProduct = salesOrder.products.find(p => p.productID.toString() === product.product._id.toString());
+            if (!existingProduct) {
+                // New product in the updated sales order, decrease the quantity in inventory
+                const productData = await Product.findOne({ userId: req.user._id, _id: product.product._id, isDeleted: false }).session(session);
+                if (productData) {
+                    console.log(`New product Quantity Before ${productData.name}`, productData.quantity);
+                    productData.quantity -= parseInt(product.quantity);
+                    console.log(`New product Quantity After ${productData.name}`, productData.quantity);
+                    // await productData.save({session});
+                } else {
+                    return res.status(400).json({ error: 'Product not found!' });
+                }
+            }
+        };
+
+        //  Now update the sales order
+        salesOrder.products = bodyData.products.map(product => ({
+            name: product.product.name,
+            quantity: product.quantity,
+            sellingPrice: product.sellingPrice,
+            gstValue: product.product.gstValue,
+            discount: product.discount,
+            netAmount: product.quantity * product.sellingPrice,
+            productID: product.product._id
+        }));
+
+        //  Now update the payments and receipts
+        //  If the previous totalAmount is changed to new totalAmount then we need to update the payment and receipt and 
+        // if (amountToPay > 0) {
+        //     // Make payment and receipt for this
+        //     const paymentData = {
+        //         userId: req.user._id,
+        //         amount: amountToPay,
+        //         paymentMode: bodyData.paymentMode,
+        //         paymentStatus: bodyData.paymentStatus,
+        //         paymentType: 'RECEIVED',
+        //         partyType: 'CUSTOMER',
+        //         invoiceNumber: salesOrder.invoiceNumber,
+        //         createdAt: newDate,
+        //         updatedAt: newDate
+        //     };
+
+        //     if (bodyData.paymentMode !== 'CASH') {
+        //         paymentData.bankId = bodyData.bank;
+        //     };
+        //     // Record payment
+        //     payment = new Payment(paymentData, { session });
+
+        //     // Create receipt
+        //     receipt = new Receipt({
+        //         userId: req.user._id,
+        //         amount: amountToPay,
+        //         paymentId: payment._id,
+        //         invoiceNumber: salesOrder.invoiceNumber,
+        //         paymentStatus: bodyData.paymentStatus,
+        //         partyType: 'CUSTOMER',
+        //         createdAt: newDate,
+        //         updatedAt: newDate
+        //     }, { session });
+
+        //     // Find Bank if bankId exist and add balance 
+        //     if (bodyData.paymentMode !== 'CASH') {
+        //         bank = await Bank.findOne({ _id: bodyData.bank, userId: req.user._id, isDeleted: false }).session(session);
+        //         if (!bank) {
+        //             return res.status(404).json({ error: 'Bank not found' });
+        //         };
+        //         bank.balance = bank.balance + parseFloat(bodyData.amountToPay);
+        //     };
+
+        //     salesOrder.payments.push({
+        //         paymentID: payment._id,
+        //         receiptID: receipt._id,
+        //         amount: amountToPay,
+        //         paymentDate: new Date()
+        //     })
+        // };
+
+        const previouslyPaidAmount = salesOrder.totalAmount - salesOrder.remainingAmount;
+
+        salesOrder.discount = bodyData.discount;
+        salesOrder.totalDiscount = bodyData.totalDiscount;
+        salesOrder.totalAmount = bodyData.totalAmount;
+        salesOrder.remainingAmount = (bodyData.totalAmount - (amountToPay || 0) - previouslyPaidAmount);
+        salesOrder.paymentStatus = salesOrder.remainingAmount === 0 ? 'PAID' : 'PENDING';
+        console.log(salesOrder);
+        // Save all models
+        // await payment.save({session});
+        // await receipt.save({session});
+        // await bank.save({session});
+        await salesOrder.save({ session });
+
+        // Commit the transaction After all work done
+        await session.commitTransaction();
+        isSuccess = true;
 
         return res.status(200).json({ msg: 'Sales orders updated successfully!.' });
     } catch (error) {
+        console.log({ error });
         serverLogger("error", { error: error.stack || error.toString() });
-        return res.status(500).json({ error: 'Internal Server Error' });
-    }
+        res.status(400).json({ error: error.toString() });
+    } finally {
+        isSuccess ? undefined : (isDBTransactionInProgress ? await session.abortTransaction() : undefined);
+        // End the session
+        session.endSession();
+    };
 }
 
 const remove = async (req, res) => {

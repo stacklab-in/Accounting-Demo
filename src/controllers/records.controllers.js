@@ -1,5 +1,9 @@
 const Payment = require('../models/Payment')
-const Receipt = require('../models/Receipt')
+const Receipt = require('../models/Receipt');
+const Purchase = require('../models/PurchaseOrder');
+const Expenditure = require('../models/Expenditure');
+const Bank = require('../models/Bank');
+const mongoose = require('mongoose');
 
 const getAllReceipts = async (req, res) => {
     try {
@@ -71,7 +75,186 @@ const getAllReceipts = async (req, res) => {
     }
 };
 
+const addPayment = async (req, res) => {
+    const session = await mongoose.startSession();
+    let isSuccess = false;
+    let isDBTransactionInProgress = false;
+    try {
 
+        // Check for all fields to come 
+        const { partyType, invoices, totalAmount, paymentDate, discount, paymentMode, bankId, chequeNumber } = req.body;
+
+        if (!partyType || invoices.length === 0 || !totalAmount || (discount < 0 ) || !paymentDate || !paymentMode) {
+            return res.status(400).json({ error: 'Please provide all the fields' });
+        }
+
+        if(paymentMode !== 'CASH'){
+            if(!bankId){
+                return res.status(400).json({ error: 'Please provide bankId' });
+            };
+        };
+
+        if(paymentMode === 'CHEQUE'){
+            if(!chequeNumber){
+                return res.status(400).json({ error: 'Please provide chequeNumber' });
+            };
+        };
+
+        const newDate = new Date();
+        session.startTransaction();
+        isDBTransactionInProgress = true;
+
+        for (let invoiceNumber of invoices) {
+            // IF VENDOR PAYMENT IS CREATED
+            if (partyType === 'VENDOR') {
+                console.log('Adding payment for vendor...')
+                const paymentPayloadToCreate = {};
+                paymentPayloadToCreate.userId = req.user._id;
+                paymentPayloadToCreate.amount = totalAmount;
+                if (paymentMode !== 'CASH') {
+                    paymentPayloadToCreate.bankId = bankId
+                };
+                if (paymentMode === 'CHEQUE') {
+                    paymentPayloadToCreate.chequeNumber = chequeNumber;
+                }
+                paymentPayloadToCreate.invoiceNumber = invoiceNumber;
+                paymentPayloadToCreate.paymentMode = paymentMode;
+                paymentPayloadToCreate.discount = discount;
+                paymentPayloadToCreate.paymentType = 'PAID';
+                paymentPayloadToCreate.partyType = 'VENDOR';
+                paymentPayloadToCreate.paymentStatus = 'PAID';
+                paymentPayloadToCreate.createdAt = newDate;
+                paymentPayloadToCreate.updatedAt = newDate;
+
+                // Create a new payment
+                const payment = new Payment(paymentPayloadToCreate, { session: session });
+                // console.log("🚀 ~ addPayment ~ payment:", payment)
+
+
+                const receipt = new Receipt({
+                    userId: req.user._id,
+                    invoiceNumber,
+                    paymentId: payment._id,
+                    amount: totalAmount,
+                    partyType: 'VENDOR',
+                    createdAt: newDate,
+                    updatedAt: newDate
+                }, { session: session });
+                // console.log("🚀 ~ addPayment ~ receipt:", receipt)
+
+
+                // Update the invoice order status to paid and add payment into and create a receipt for it also
+                const purchaseOrder = await Purchase.findOne({ invoiceNumber, isDeleted: false }).session(session);
+
+                if (!purchaseOrder) {
+                    return res.status(400).json({ error: 'Purchase order not found' });
+                }
+
+                purchaseOrder.paymentStatus = 'PAID';
+                purchaseOrder.remainingAmount = 0;
+                purchaseOrder.payments.push({
+                    paymentID: payment._id,
+                    receiptID: receipt._id,
+                    amount: totalAmount,
+                    paymentDate: new Date(paymentDate)
+                });
+                // console.log("🚀 ~ addPayment ~ purchaseOrder:", purchaseOrder)
+
+                if (bankId) {
+                    const bank = await Bank.findById(bankId).session(session);
+                    bank.balance = bank.balance - totalAmount;
+                    await bank.save({ session });
+                    // console.log("🚀 ~ addPayment ~ bank:", bank)
+                };
+
+                await payment.save({ session: session });
+                await receipt.save({ session: session });
+                await purchaseOrder.save({ session: session });
+
+            };
+
+            // IF EXPENSE PAYMENT IS CREATED
+            if (partyType === 'EXPENSE') {
+                console.log('Adding payment for expense...')
+                const paymentPayloadToCreate = {};
+                paymentPayloadToCreate.userId = req.user._id;
+                paymentPayloadToCreate.amount = totalAmount;
+                if (paymentMode !== 'CASH') {
+                    paymentPayloadToCreate.bankId = bankId
+                };
+                if (paymentMode === 'CHEQUE') {
+                    paymentPayloadToCreate.chequeNumber = chequeNumber;
+                }
+                paymentPayloadToCreate.paymentMode = paymentMode;
+                paymentPayloadToCreate.discount = discount;
+                paymentPayloadToCreate.invoiceNumber = invoiceNumber;
+                paymentPayloadToCreate.paymentType = 'PAID';
+                paymentPayloadToCreate.partyType = 'EXPENSE';
+                paymentPayloadToCreate.paymentStatus = 'PAID';
+                paymentPayloadToCreate.createdAt = newDate;
+                paymentPayloadToCreate.updatedAt = newDate;
+
+                // Create a new payment
+                const payment = new Payment(paymentPayloadToCreate, { session: session });
+                // console.log("🚀 ~ addPayment ~ payment:", payment)
+
+                const receipt = new Receipt({
+                    userId: req.user._id,
+                    invoiceNumber,
+                    amount: totalAmount,
+                    partyType: 'EXPENSE',
+                    createdAt: newDate,
+                    updatedAt: newDate
+                }, { session: session });
+                // console.log("🚀 ~ addPayment ~ receipt:", receipt)
+
+                const expenditure = await Expenditure.findOne({ invoiceNumber, isDeleted: false }).session(session);
+
+                if (!expenditure) {
+                    return res.status(400).json({ error: 'Expenditure not found' });
+                }
+
+                expenditure.paymentStatus = 'PAID';
+                expenditure.remainingAmount = 0;
+                expenditure.payments.push({
+                    paymentID: payment._id,
+                    receiptID: receipt._id,
+                    amount: totalAmount,
+                    paymentDate: new Date(paymentDate)
+                });
+                // console.log("🚀 ~ addPayment ~ expenditure:", expenditure)
+
+                if (bankId) {
+                    const bank = await Bank.findById(bankId).session(session);
+                    bank.balance = bank.balance - totalAmount;
+                    await bank.save({ session: session });
+                    // console.log("🚀 ~ addPayment ~ bank:", bank)
+                };
+
+                await payment.save({ session: session });
+                await receipt.save({ session: session });
+                await expenditure.save({ session: session });
+
+            };
+
+        };
+
+        // Commit the transaction After all work done
+        await session.commitTransaction();
+        isSuccess = true;
+
+        return res.status(200).json({ msg: 'Payment added successfully!' });
+    } catch (error) {
+        console.log({ error });
+        serverLogger("error", { error: error.stack || error.toString() });
+        res.status(400).json({ error: error.toString() });
+    } finally {
+        isSuccess ? undefined : (isDBTransactionInProgress ? await session.abortTransaction() : undefined);
+        // End the session
+        session.endSession();
+    };
+
+}
 
 const getAllPayments = async (req, res) => {
     try {
@@ -84,4 +267,4 @@ const getAllPayments = async (req, res) => {
 };
 
 
-module.exports = { getAllPayments, getAllReceipts }
+module.exports = { getAllPayments, getAllReceipts, addPayment }

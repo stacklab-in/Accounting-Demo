@@ -1,4 +1,5 @@
 const ProductBarcodeValue = require("../models/ProductBarcodeValues");
+const ProductBarcode = require("../models/ProductBarcodes");
 
 module.exports.add = async (req, res) => {
     try {
@@ -73,5 +74,25 @@ module.exports.fetchBarcodeValues = async (req, res) => {
         });
     }
 };
+
+module.exports.listAllProductsWithBarcodes = async (req, res) => {
+    try {
+        // update the user
+        const productBarcodeValue = await ProductBarcode.find({ userId: req.user._id }).sort({ createdAt: -1 }).populate('productId');
+
+        return res.status(200).json({
+            status: true,
+            message: "Product barcodes fetched successfully",
+            data: productBarcodeValue
+        });
+    } catch (err) {
+        console.error(err);
+        // Implement logger function if any
+        return res.status(500).json({
+            status: false,
+            error: `${err.message}`
+        });
+    }
+}
 
 

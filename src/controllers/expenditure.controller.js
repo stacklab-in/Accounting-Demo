@@ -6,6 +6,11 @@ const mongoose = require('mongoose');
 const { serverLogger } = require('../utils/loggerWinston');
 const { newIdForInvoice } = require('../utils/ids');
 
+// Function to generate invoice number based on the last one
+function generateInvoiceNumber(lastInvoiceNumber, type) {
+    const incrementedNumber = (parseInt(lastInvoiceNumber.slice(4), 10) + 1).toString();
+    return type === 'EXPENSE' ? 'EXP-' + incrementedNumber : 'INC-' + incrementedNumber;
+}
 
 const add = async (req, res) => {
     const session = await mongoose.startSession();
@@ -23,7 +28,21 @@ const add = async (req, res) => {
         let requestBody = req.body;
         requestBody.userId = req.user._id;
         requestBody.date = new Date(requestBody.date);
-        requestBody.invoiceNumber = newIdForInvoice();
+        console.log(requestBody);
+
+        // Determine the type-specific search key and set isDeleted and invoiceNumber accordingly
+        let searchKey = '';
+        if (requestBody.type === 'EXPENSE') {
+            searchKey = { type: requestBody.type, isDeleted: false };
+            requestBody.isDeleted = false;
+            const { invoiceNumber: lastInvoiceNumber } = await Expenditure.findOne(searchKey, {}, { sort: { 'createdAt': -1 } }) || { invoiceNumber: 'EXP-0' };
+            requestBody.invoiceNumber = generateInvoiceNumber(lastInvoiceNumber, requestBody.type);
+        } else if (requestBody.type === 'INCOME') {
+            searchKey = { type: requestBody.type, isDeleted: false };
+            requestBody.isDeleted = false;
+            const { invoiceNumber: lastInvoiceNumber } = await Expenditure.findOne(searchKey, {}, { sort: { 'createdAt': -1 } }) || { invoiceNumber: 'INC-0' };
+            requestBody.invoiceNumber = generateInvoiceNumber(lastInvoiceNumber, requestBody.type);
+        };
 
         if (requestBody.paymentStatus === 'PAID') {
             // Create Payement For this Expenditure
@@ -111,7 +130,6 @@ const add = async (req, res) => {
         session.endSession();
     };
 };
-
 
 const update = async (req, res) => {
     const session = await mongoose.startSession();
@@ -386,7 +404,7 @@ const getPaymentsSummary = async (req, res) => {
         ]);
 
         //  Now i want net balance, paid amount and received amount using aggregation on expenditure modal
-        const payment = await Payment.find({ isDeleted: false, userId: req.user._id, partyType: { $in: type } });
+        const payment = await Payment.find({ isDeleted: false, userId: req.user._id, partyType: { $in: type } }).sort({ createdAt: -1 });
 
         // Calculate total sales amount
         const totalAmount = payment.reduce((acc, order) => acc + (order.amount), 0);
@@ -394,34 +412,14 @@ const getPaymentsSummary = async (req, res) => {
         let receivedBalance;
         let paidBalance;
 
-
-        // if (type[0] === 'VENDOR' ) {
-        //     // Calculate total paid amount
-        //      receivedBalance = expenditure.reduce((acc, order) => {
-        //         if (order.partyType === 'CUSTOMER') {
-        //             const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
-        //             return acc + paidAmount;
-        //         }
-        //     }, 0).toFixed(2);   
-
-
-        //     // Calculate total paid amount
-        //         paidBalance = expenditure.reduce((acc, order) => {
-        //             if (order.partyType === 'EXPENSE') {
-        //                 const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
-        //                 return acc + paidAmount;
-        //             }
-        //         }, 0).toFixed(2);
-        // } else {
-
         // Calculate total paid amount
-         receivedBalance = payment.reduce((acc, order) => {
+        receivedBalance = payment.reduce((acc, order) => {
             if (order.partyType === 'INCOME') {
                 return acc + order.amount;
             }
-            return acc; 
+            return acc;
         }, 0);
-        
+
 
         // Calculate total paid amount
         paidBalance = payment.reduce((acc, order) => {
@@ -439,9 +437,7 @@ const getPaymentsSummary = async (req, res) => {
 
         };
 
-        const payments = await Payment.find({ isDeleted: false, userId: req.user._id, partyType: { $in: type } });
-
-        return res.status(200).json({ msg: 'Payments fetched successfully!.', data: { balanceSummary, typeSummaryDifferedByPaymentModeTypes, payments } });
+        return res.status(200).json({ msg: 'Payments fetched successfully!.', data: { balanceSummary, typeSummaryDifferedByPaymentModeTypes, payments: payment } });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
         return res.status(500).json({ error: 'Internal Server Error' });

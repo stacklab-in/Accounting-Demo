@@ -8,16 +8,14 @@ const Payment = require('../models/Payment');
 const Joi = require('joi');
 const Bank = require('../models/Bank');
 const Vendor = require('../models/Vendor');
-const ProductBarcodeValues = require('../models/ProductBarcodeValues');
-const ProductBarcode = require('../models/ProductBarcodes');
 
 const add = async (req, res) => {
     const session = await mongoose.startSession();
     let isSuccess = false;
     let isDBTransactionInProgress = false;
-    const { invoiceNumber: lastInvoiceNumber } = await Purchase.findOne({ orderType: 'PURCHASE', isDeleted: false }, {}, { sort: { 'createdAt': -1 } }) || { invoiceNumber: 'PINV-0' };
-    const incrementedNumber = (parseInt(lastInvoiceNumber.slice(5), 10) + 1).toString();
-    const invoiceNumber = 'PINV-' + incrementedNumber;
+    const { invoiceNumber: lastInvoiceNumber } = await Purchase.findOne({ orderType: 'RETURN', isDeleted: false }, {}, { sort: { 'createdAt': -1 } }) || { invoiceNumber: 'PRINV-0' };
+    const incrementedNumber = (parseInt(lastInvoiceNumber.slice(6), 10) + 1).toString();
+    const invoiceNumber = 'PRINV-' + incrementedNumber;
     const newDate = new Date();
 
     try {
@@ -45,36 +43,8 @@ const add = async (req, res) => {
             if (productData.quantity < product.quantity) {
                 throw new Error("Product quantity is less than requested");
             };
-            productData.quantity += product.quantity;
+            productData.quantity -= product.quantity;
             await productData.save({ session });
-
-            //  I want to create barcode for each purchase price and then save in barcodes records
-            // Find for barcode values
-            const barcodeValues = await ProductBarcodeValues.findOne({ userId: req.user._id, isDeleted: false }).session(session);
-
-            if (!barcodeValues) {
-                throw new Error("Barcode values not found");
-            };
-
-            //  Check first if barcode is already exist or not for same purchase price 
-            const barcode = await ProductBarcode.findOne({ userId: req.user._id, purchasePrice: product.sellingPrice, isDeleted: false }).session(session);
-            if (!barcode) {
-                const firstPart = Math.floor(Math.random() * 900) + 100;
-                const secondPart = parseInt(product.sellingPrice, 10) * parseInt(barcodeValues.value, 10);
-                const thirdPart = 16;
-                const fourthPart = (parseInt(product.sellingPrice, 10) * parseInt(barcodeValues.percentageValue, 10)) + secondPart;
-                const fifthPart = Math.floor(Math.random() * 900) + 100;
-                const generatedBarcode = `${firstPart}${secondPart.toString().padStart(6, '0')}${thirdPart}${fourthPart.toString().padStart(6, '0')}${fifthPart}`;
-                let productBarcode = new ProductBarcode({
-                    userId: req.user._id,
-                    barcode: generatedBarcode,
-                    purchasePrice: product.sellingPrice,
-                    productId: productData._id,
-                    createdAt: newDate,
-                    updatedAt: newDate
-                }, { session });
-                await productBarcode.save({ session });
-            }
         };
 
         const paymentData = {
@@ -82,7 +52,7 @@ const add = async (req, res) => {
             amount: amountToPay,
             paymentMode: reqBody.paymentMode,
             paymentStatus: reqBody.paymentStatus,
-            paymentType: 'PAID',
+            paymentType: 'RECEIVED',
             partyType: 'VENDOR',
             invoiceNumber,
             createdAt: newDate,
@@ -116,7 +86,7 @@ const add = async (req, res) => {
             if (!bank) {
                 return res.status(404).json({ error: 'Bank not found' });
             };
-            bank.balance = bank.balance - parseFloat(reqBody.amountToPay);
+            bank.balance = bank.balance + parseFloat(reqBody.amountToPay);
             await bank.save({ session });
         }
 
@@ -124,7 +94,7 @@ const add = async (req, res) => {
             userId: req.user._id,
             vendorId: vendor._id,
             transactionId: newIdForTransaction(),
-            orderType: 'PURCHASE',
+            orderType: 'RETURN',
             purchaseDate: new Date(),
             products: reqBody.products.map(product => ({
                 name: product.product.name,
@@ -149,24 +119,21 @@ const add = async (req, res) => {
             createdAt: newDate,
             updatedAt: newDate
         };
-
-        if (reqBody.referenceNumber) {
-            purchase.referenceNumber = reqBody.referenceNumber;
-        };
-
         // Now create a purchase order 
-        let purchaseOrder = new Purchase(purchase, { session });
+        let purchaseReturnOrder = new Purchase(purchase, { session });
+
 
         await vendor.save({ session });
         await payment.save({ session });
         await receipt.save({ session });
-        await purchaseOrder.save({ session });
+        await purchaseReturnOrder.save({ session });
+        
 
         // Commit the transaction After all work done
         await session.commitTransaction();
         isSuccess = true;
 
-        return res.status(200).json({ msg: 'Purchase order created successfully' });
+        return res.status(200).json({ msg: 'Purchase return order created successfully' });
 
     } catch (error) {
         console.log({ error });
@@ -181,8 +148,8 @@ const add = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const purchaseOrders = await Purchase.find({ isDeleted: false, userId: req.user._id, orderType: 'PURCHASE' }).sort({ createdAt: -1 }).populate('vendorId  payments.paymentID');
-        return res.status(200).json({ msg: 'Purchase orders fetched successfully!.', data: purchaseOrders });
+        const purchaseReturnOrders = await Purchase.find({ isDeleted: false, userId: req.user._id, orderType: 'RETURN' }).sort({ createdAt: -1 }).populate('vendorId  payments.paymentID');
+        return res.status(200).json({ msg: 'Purchase return orders fetched successfully!.', data: purchaseReturnOrders });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
         return res.status(500).json({ error: 'Internal Server Error' });
@@ -226,13 +193,12 @@ const recordPayment = async (req, res) => {
 
         const amountToPay = parseFloat(requestBody.amountToPay);
 
-        const purchaseOrder = await Purchase.findOne({ _id: requestBody.id, userId: req.user._id, isDeleted: false }).session(session);
-        if (!purchaseOrder) {
-            return res.status(400).json({ error: 'Purchase order not found or may be deleted!.' });
+        const purchaseReturnOrder = await Purchase.findOne({ _id: requestBody.id, userId: req.user._id, orderType: 'RETURN', isDeleted: false }).session(session);
+        if (!purchaseReturnOrder) {
+            return res.status(400).json({ error: 'Purchase return order not found or may be deleted!.' });
         };
 
-
-        const paymentStatus = purchaseOrder.remainingAmount - amountToPay === 0 ? 'PAID' : 'PENDING';
+        const paymentStatus = purchaseReturnOrder.remainingAmount - amountToPay === 0 ? 'PAID' : 'PENDING';
 
         // Now create payment
         const payment = new Payment({
@@ -240,9 +206,9 @@ const recordPayment = async (req, res) => {
             amount: amountToPay.toFixed(2),
             paymentMode: requestBody.paymentMode,
             paymentStatus,
-            paymentType: 'PAID',
+            paymentType: 'RECEIVED',
             partyType: 'VENDOR',
-            invoiceNumber: purchaseOrder.invoiceNumber,
+            invoiceNumber: purchaseReturnOrder.invoiceNumber,
             createdAt: new Date(requestBody.paymentDate)
         }, { session: session });
 
@@ -253,7 +219,7 @@ const recordPayment = async (req, res) => {
             if (!bank) {
                 return res.status(404).json({ error: 'Bank not found' });
             }
-            bank.balance = bank.balance - parseFloat(requestBody.amountToPay).toFixed(2);
+            bank.balance = bank.balance + parseFloat(requestBody.amountToPay).toFixed(2);
             await bank.save({ session });
         };
 
@@ -262,31 +228,32 @@ const recordPayment = async (req, res) => {
             userId: req.user._id,
             amount: amountToPay.toFixed(2),
             paymentId: payment._id,
-            invoiceNumber: purchaseOrder.invoiceNumber,
+            invoiceNumber: purchaseReturnOrder.invoiceNumber,
             paymentStatus,
             partyType: 'VENDOR'
         }, { session: session });
 
         // Now Update Purchase order with payments and remaining balance
-        purchaseOrder.remainingAmount -= amountToPay.toFixed(2);
-        purchaseOrder.payments.push({
+        purchaseReturnOrder.remainingAmount -= amountToPay.toFixed(2);
+        purchaseReturnOrder.payments.push({
             paymentID: payment._id,
             receiptID: receipt._id,
             amount: payment.amount,
             paymentDate: new Date(requestBody.paymentDate)
         });
-        purchaseOrder.paymentStatus = paymentStatus
+        purchaseReturnOrder.paymentStatus = paymentStatus
 
         // Now Save all the payments and sales order
         await payment.save({ session: session });
         await receipt.save({ session: session });
-        await purchaseOrder.save({ session: session });
+        await purchaseReturnOrder.save({ session: session });
+
 
         // Commit the transaction After all work done
         await session.commitTransaction();
         isSuccess = true;
 
-        return res.status(200).json({ msg: 'Purchase order payment recorded successfully' });
+        return res.status(200).json({ msg: 'Purchase return order payment recorded successfully' });
 
     } catch (error) {
         console.log({ error });
@@ -301,13 +268,13 @@ const recordPayment = async (req, res) => {
 
 const getSummaryOfPurchase = async (req, res) => {
     try {
-        const purchaseOrder = await Purchase.find({ orderType: 'PURCHASE', isDeleted: false, userId: req.user._id });
+        const purchaseReturnOrder = await Purchase.find({ orderType: 'RETURN', isDeleted: false, userId: req.user._id });
 
         // Calculate total sales amount
-        const totalPurchaseAmount = purchaseOrder.reduce((acc, order) => acc + order.totalAmount, 0).toFixed(2);
+        const totalPurchaseAmount = purchaseReturnOrder.reduce((acc, order) => acc + order.totalAmount, 0).toFixed(2);
 
         // Calculate total paid amount
-        const totalPaidAmount = purchaseOrder.reduce((acc, order) => {
+        const totalPaidAmount = purchaseReturnOrder.reduce((acc, order) => {
             const paidAmount = order.payments.reduce((total, payment) => total + payment.amount, 0);
             return acc + paidAmount;
         }, 0).toFixed(2);
@@ -332,14 +299,14 @@ const update = async (req, res) => {
     try {
         const bodyData = req.body;
 
-        const purchaseOrder = await Purchase.findOne({ _id: bodyData.id, userId: req.user._id });
+        const purchaseReturnOrder = await Purchase.findOne({ _id: bodyData.id, orderType: 'RETURN', userId: req.user._id });
 
-        if (!purchaseOrder) {
-            return res.status(400).json({ error: 'Purchase order not found!' });
+        if (!purchaseReturnOrder) {
+            return res.status(400).json({ error: 'Purchase return order not found!' });
         };
 
-        purchaseOrder.paymentStatus = bodyData.paymentStatus;
-        await purchaseOrder.save();
+        purchaseReturnOrder.paymentStatus = bodyData.paymentStatus;
+        await purchaseReturnOrder.save();
 
         return res.status(200).json({ msg: 'Purchase orders updated successfully!.' });
     } catch (error) {
@@ -357,14 +324,14 @@ const remove = async (req, res) => {
         session.startTransaction();
         isDBTransactionInProgress = true;
 
-        const purchaseOrder = await Purchase.findOne({ isDeleted: false, _id: req.body.id, userId: req.user._id }).session(session);
+        const purchaseReturnOrder = await Purchase.findOne({ isDeleted: false, orderType: 'RETURN', _id: req.body.id, userId: req.user._id }).session(session);
 
-        if (!purchaseOrder) {
-            return res.status(404).json({ error: 'Purchase order not found!..' });
+        if (!purchaseReturnOrder) {
+            return res.status(404).json({ error: 'Purchase return order not found!..' });
         };
 
         // Delete payments and receipts
-        const paymentIds = purchaseOrder.payments.map(payment => payment.paymentID);
+        const paymentIds = purchaseReturnOrder.payments.map(payment => payment.paymentID);
 
         // Update Payments
         await Payment.updateMany(
@@ -379,14 +346,14 @@ const remove = async (req, res) => {
         ).session(session);
 
 
-        purchaseOrder.isDeleted = true;
-        await purchaseOrder.save({ session });
+        purchaseReturnOrder.isDeleted = true;
+        await purchaseReturnOrder.save({ session });
 
         // Commit the transaction After all work done
         await session.commitTransaction();
         isSuccess = true;
 
-        return res.status(200).json({ msg: 'Purchase order deleted successfully!..' });
+        return res.status(200).json({ msg: 'Purchase return order deleted successfully!..' });
     } catch (error) {
         console.log({ error });
         serverLogger("error", { error: error.stack || error.toString() });

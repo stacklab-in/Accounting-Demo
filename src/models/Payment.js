@@ -6,6 +6,8 @@ const paymentSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: 'User' },
     amount: { type: Number, required: true },
     bankId: { type: Schema.Types.ObjectId, ref: 'Bank' },
+    chequeNumber: { type: Number },
+    discount: { type: Number }, // In value
     invoiceNumber: { type: String, required: true },
     paymentMode: { type: String, required: true, ENUM: common.paymentMode },
     paymentType: { type: String, required: true, ENUM: common.paymentType },

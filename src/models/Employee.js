@@ -16,6 +16,7 @@ const employeeSchema = new Schema({
     mobileNumber: { type: String, required: true },
     dateOfBirth: { type: Date, required: true },
     address,
+    attendance: {},
     isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 

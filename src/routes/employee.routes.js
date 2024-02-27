@@ -47,6 +47,26 @@ router.post('/update',
         }
     });
 
+router.post('/mark-attendance',
+    auth,
+    //  checkPermissions('role.update'),
+    employee.markAttendance).descriptor({
+        name: "Update Attendance f employee",
+        body: {
+            employeeId: 'employeeId',
+            attendance: {}
+        }
+    });
+
+router.post('/get-sales-history',
+    auth,
+    //  checkPermissions('role.update'),
+    employee.getSalesHistory).descriptor({
+        name: "Get Sales History of employee",
+        body: {
+            employeeId: 'employeeId'
+        }
+    });
 router.post('/list',
     auth,
     //  checkPermissions('role.list),

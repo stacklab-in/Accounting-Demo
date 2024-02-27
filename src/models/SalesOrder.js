@@ -8,7 +8,7 @@ const salesOrderSchema = new Schema({
     salesManId: { type: Schema.Types.ObjectId, ref: "Employee" },
     transactionId: { type: String, required: true },
     invoiceDate: { type: Date, required: true },
-    invoiceDueDate: { type: Date, required: true },
+    // invoiceDueDate: { type: Date, required: true },
     invoiceNumber: { type: String, required: true, unique: true },
     products: [
         {
@@ -17,7 +17,8 @@ const salesOrderSchema = new Schema({
             sellingPrice: { type: Number, required: true },
             gstValue: { type: Number, required: true },
             discount: { type: Number, required: true }, //In Percent
-            netAmount: { type: Number, required: true }
+            netAmount: { type: Number, required: true },
+            productID: { type: Schema.Types.ObjectId, ref: "Product" },
         }
     ],
     discount: {
@@ -25,7 +26,8 @@ const salesOrderSchema = new Schema({
             id: {},
             discount: { type: Number }
         },
-        productDiscount: { type: Number }
+        productDiscount: { type: Number },
+        amount: { type: Number }
     },
     totalDiscount: { type: Number },
     totalAmount: { type: Number, required: true },
