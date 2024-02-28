@@ -43,7 +43,7 @@ const add = async (req, res) => {
             if (productData.quantity < product.quantity) {
                 throw new Error("Product quantity is less than requested");
             };
-            productData.quantity -= product.quantity;
+            productData.quantity -= parseInt(product.quantity);
             await productData.save({ session });
         };
 
@@ -56,7 +56,8 @@ const add = async (req, res) => {
             partyType: 'VENDOR',
             invoiceNumber,
             createdAt: newDate,
-            updatedAt: newDate
+            updatedAt: newDate,
+            userName: vendor.name,
         };
 
         if (reqBody.paymentMode !== 'CASH') {
@@ -76,7 +77,8 @@ const add = async (req, res) => {
             paymentStatus: reqBody.paymentStatus,
             partyType: 'VENDOR',
             createdAt: newDate,
-            updatedAt: newDate
+            updatedAt: newDate,
+            userName: vendor.name,
         }, { session });
 
 
@@ -127,7 +129,7 @@ const add = async (req, res) => {
         await payment.save({ session });
         await receipt.save({ session });
         await purchaseReturnOrder.save({ session });
-        
+
 
         // Commit the transaction After all work done
         await session.commitTransaction();
@@ -198,6 +200,11 @@ const recordPayment = async (req, res) => {
             return res.status(400).json({ error: 'Purchase return order not found or may be deleted!.' });
         };
 
+        let vendor = await Vendor.findOne({ userId: req.user._id, _id: purchaseReturnOrder.vendorId, isDeleted: false }).session(session);
+        if (!vendor) {
+            return res.status(400).json({ error: 'Vendor not found or may be deleted!.' });
+        };
+
         const paymentStatus = purchaseReturnOrder.remainingAmount - amountToPay === 0 ? 'PAID' : 'PENDING';
 
         // Now create payment
@@ -209,7 +216,9 @@ const recordPayment = async (req, res) => {
             paymentType: 'RECEIVED',
             partyType: 'VENDOR',
             invoiceNumber: purchaseReturnOrder.invoiceNumber,
-            createdAt: new Date(requestBody.paymentDate)
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            userName: vendor.name,
         }, { session: session });
 
         if (requestBody.paymentMode !== 'CASH') {
@@ -230,7 +239,10 @@ const recordPayment = async (req, res) => {
             paymentId: payment._id,
             invoiceNumber: purchaseReturnOrder.invoiceNumber,
             paymentStatus,
-            partyType: 'VENDOR'
+            partyType: 'VENDOR',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            userName: vendor.name,
         }, { session: session });
 
         // Now Update Purchase order with payments and remaining balance

@@ -56,6 +56,7 @@ const add = async (req, res) => {
                 partyType: 'EXPENSE',
                 paymentStatus: requestBody.paymentStatus,
                 isDeleted: false,
+                category: requestBody.category,
                 createdAt: newDate,
                 updatedAt: newDate,
             }, { session });
@@ -82,6 +83,7 @@ const add = async (req, res) => {
                 paymentId: payment._id,
                 partyType: 'EXPENSE',
                 isDeleted: false,
+                category: requestBody.category,
                 createdAt: newDate,
                 updatedAt: newDate,
             }, { session });
@@ -155,6 +157,7 @@ const update = async (req, res) => {
         expenditure.date = new Date(updatedData.date);
         expenditure.category = updatedData.category;
         expenditure.type = updatedData.type;
+        console.log(updatedData)
 
         for (const payment of expenditure.payments) {
             const paymentDocument = await Payment.findOne({ _id: payment.paymentID, isDeleted: false }).session(session);
@@ -163,6 +166,7 @@ const update = async (req, res) => {
             };
 
             paymentDocument.partyType = updatedData.type;
+            paymentDocument.category = updatedData.category;
 
             await paymentDocument.save({ session });
             console.log({ payment })
@@ -171,6 +175,7 @@ const update = async (req, res) => {
                 return res.status(404).json({ error: 'Receipt not found' });
             };
             receiptDocument.partyType = updatedData.type;
+            receiptDocument.category = updatedData.category;
 
             await receiptDocument.save({ session });
 
@@ -293,7 +298,7 @@ const recordPayment = async (req, res) => {
     let isDBTransactionInProgress = false;
     let payment;
     let receipt;
-
+    let newDate = new Date();
     try {
 
         const body = req.body;
@@ -317,7 +322,9 @@ const recordPayment = async (req, res) => {
             paymentMode: body.paymentMode,
             partyType: expenditure.type,
             paymentStatus: 'PAID',
-            isDeleted: false
+            category: expenditure.category,
+            createdAt: newDate,
+            updatedAt: newDate,
         }, { session });
 
         if (!payment) {
@@ -341,7 +348,9 @@ const recordPayment = async (req, res) => {
             invoiceNumber: expenditure.invoiceNumber,
             paymentId: payment._id,
             partyType: expenditure.type,
-            isDeleted: false
+            category: expenditure.category,
+            createdAt: newDate,
+            updatedAt: newDate,
         }, { session });
 
         if (!receipt) {

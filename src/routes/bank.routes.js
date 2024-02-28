@@ -21,19 +21,20 @@ router.post('/add',
         }
     });
 
-// router.post('/update',
-//     auth,
-//     //  checkPermissions('role.update'),
-//     bank.u).descriptor({
-//         name: "Update a bank",
-//         body: {
-//             accountNumber: '',
-//             ifscCode: '',
-//             bankName: '',
-//             branchName: '',
-//             isDefault: false
-//         }
-//     });
+router.post('/update',
+    auth,
+    //  checkPermissions('role.update'),
+    bank.update).descriptor({
+        name: "Update a bank",
+        body: {
+            id:'',
+            accountNumber: '',
+            ifscCode: '',
+            bankName: '',
+            branchName: '',
+            isDefault: false
+        }
+    });
 
 router.post('/list',
     auth,

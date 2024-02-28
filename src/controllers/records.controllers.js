@@ -4,70 +4,12 @@ const Purchase = require('../models/PurchaseOrder');
 const Expenditure = require('../models/Expenditure');
 const Bank = require('../models/Bank');
 const mongoose = require('mongoose');
+const SalesOrder = require('../models/SalesOrder');
+const { serverLogger } = require('../utils/loggerWinston');
 
 const getAllReceipts = async (req, res) => {
     try {
-        const receipts = await Receipt.aggregate([
-            {
-                $match: {
-                    userId: req.user._id, // Replace 'userId' with the actual user ID you want to filter by
-                    isDeleted: false
-                }
-            },
-            {
-                $lookup: {
-                    from: 'salesorders', // Assuming your SalesOrder model is named 'SalesOrder'
-                    localField: 'invoiceNumber',
-                    foreignField: 'invoiceNumber',
-                    as: 'salesOrder'
-                }
-            },
-            {
-                $unwind: '$salesOrder'
-            },
-            {
-                $lookup: {
-                    from: 'customers',
-                    localField: 'salesOrder.customerId',
-                    foreignField: '_id',
-                    as: 'customer'
-                }
-            },
-            {
-                $lookup: {
-                    from: 'payments',
-                    localField: 'paymentId',
-                    foreignField: '_id',
-                    as: 'payment'
-                }
-            },
-            {
-                $addFields: {
-                    customerName: { $arrayElemAt: ['$customer.name', 0] }, // Get the first element of the customer array
-                    paymentId: { $arrayElemAt: ['$payment', 0] } // Get the first element of the customer array
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    userId: 1,
-                    amount: 1,
-                    bankId: 1,
-                    invoiceNumber: 1,
-                    paymentId: 1,
-                    paymentType: 1,
-                    partyType: 1,
-                    paymentStatus: 1,
-                    isDeleted: 1,
-                    customerName: 1,
-                    createdAt: 1
-                }
-            },
-            {
-                $sort: { createdAt: -1 } // Sort by createdAt in descending order
-            }
-        ]);
-
+        const receipts = await Receipt.find({ isDeleted: false, userId: req.user._id }).populate('paymentId').sort({ createdAt: -1 });
         return res.status(200).json({ msg: 'Receipts fetched successfully!.', data: receipts });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
@@ -84,18 +26,18 @@ const addPayment = async (req, res) => {
         // Check for all fields to come 
         const { partyType, invoices, totalAmount, paymentDate, discount, paymentMode, bankId, chequeNumber } = req.body;
 
-        if (!partyType || invoices.length === 0 || !totalAmount || (discount < 0 ) || !paymentDate || !paymentMode) {
+        if (!partyType || invoices.length === 0 || !totalAmount || (discount < 0) || !paymentDate || !paymentMode) {
             return res.status(400).json({ error: 'Please provide all the fields' });
         }
 
-        if(paymentMode !== 'CASH'){
-            if(!bankId){
+        if (paymentMode !== 'CASH') {
+            if (!bankId) {
                 return res.status(400).json({ error: 'Please provide bankId' });
             };
         };
 
-        if(paymentMode === 'CHEQUE'){
-            if(!chequeNumber){
+        if (paymentMode === 'CHEQUE') {
+            if (!chequeNumber) {
                 return res.status(400).json({ error: 'Please provide chequeNumber' });
             };
         };
@@ -266,5 +208,95 @@ const getAllPayments = async (req, res) => {
     }
 };
 
+const profitAndLossStatement = async (req, res) => {
+    try {
+        const userId = req.user._id;
 
-module.exports = { getAllPayments, getAllReceipts, addPayment }
+        // Fetch sales, purchases, and purchase returns concurrently
+        const [sales, purchases, purchaseReturns] = await Promise.all([
+            SalesOrder.find({ isDeleted: false, userId }, { payments: 1 }),
+            Purchase.find({ isDeleted: false, orderType: 'PURCHASE', userId }, { payments: 1 }),
+            Purchase.find({ isDeleted: false, orderType: 'RETURN', userId }, { payments: 1 })
+        ]);
+
+        const totalSalesAmount = sales.reduce((acc, data) => {
+            const payments = data.payments.reduce((acc, payment) => acc + payment.amount, 0);
+            return acc + payments
+        }, 0);;
+        const totalPurchaseAmount = purchases.reduce((acc, data) => {
+            const payments = data.payments.reduce((acc, payment) => acc + payment.amount, 0);
+            return acc + payments
+        }, 0);
+        const totalPurchaseReturnAmount = purchaseReturns.reduce((acc, data) => {
+            const payments = data.payments.reduce((acc, payment) => acc + payment.amount, 0);
+            return acc + payments
+        }, 0);
+
+        const grossProfit = (totalSalesAmount + totalPurchaseReturnAmount) - totalPurchaseAmount;
+
+        // Fetch total expenses and total income concurrently
+        const [totalExpenses, totalIncome] = await Promise.all([
+            Expenditure.find({ isDeleted: false, type: 'EXPENSE', userId }),
+            Expenditure.find({ isDeleted: false, type: 'INCOME', userId })
+        ]);
+
+        const totalExpensesAmount = totalExpenses.reduce((acc, data) => {
+            const payments = data.payments.reduce((acc, payment) => acc + payment.amount, 0);
+            return acc + payments
+        }, 0);
+
+        const totalIncomeAmount = totalIncome.reduce((acc, data) => {
+            const payments = data.payments.reduce((acc, payment) => acc + payment.amount, 0);
+            return acc + payments
+        }, 0);
+
+        const netTotal = grossProfit - totalExpensesAmount + totalIncomeAmount;
+
+        return res.status(200).json({
+            msg: 'Profit and Loss fetched successfully!',
+            data: {
+                totalSalesAmount,
+                totalPurchaseAmount,
+                totalPurchaseReturnAmount,
+                grossProfit,
+                totalExpensesAmount,
+                totalIncomeAmount,
+                netTotal
+            }
+        });
+    } catch (error) {
+        serverLogger("error", { error: error.stack || error.toString() });
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+const dayBookDetails = async (req, res) => {
+
+    try {
+        if (!req.body.date) {
+            return res.status(400).json({ error: 'Please provide date' });
+        };
+        const dateFilter = new Date(req.body.date); // Assuming req.body.date is in 'YYYY/MM/DD' format
+
+
+        // Convert dateFilter to UTC format
+        const utcDateFilter = new Date(Date.UTC(dateFilter.getFullYear(), dateFilter.getMonth(), dateFilter.getDate()));
+        console.log("🚀 ~ dayBookDetails ~ utcDateFilter:", utcDateFilter)
+
+        const receipts = await Receipt.find({
+            userId: req.user._id,
+            isDeleted: false,
+            createdAt: {
+                $gte: utcDateFilter, // Greater than or equal to the beginning of the specified date
+                $lt: new Date(utcDateFilter.getTime() + 24 * 60 * 60 * 1000) // Less than the beginning of the next day
+            }
+        }).sort({createdAt: -1});
+
+        return res.status(200).json({ msg: 'Day Book Fetched Successfully', data: receipts });
+    } catch (error) {
+        serverLogger("error", { error: error.stack || error.toString() });
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+module.exports = { getAllPayments, getAllReceipts, addPayment, profitAndLossStatement, dayBookDetails }

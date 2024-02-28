@@ -8,6 +8,7 @@ const vendorSchema = new Schema({
     email: { type: String, required: true, unique: true },
     mobileNumber: { type: String, required: true },
     type: { type: String, required: true, enum: common.userType },
+    initials: { type: String },
     company: {
         name: { type: String, },
         gstNumber: { type: String, },

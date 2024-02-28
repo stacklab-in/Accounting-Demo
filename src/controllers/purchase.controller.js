@@ -45,7 +45,7 @@ const add = async (req, res) => {
             if (productData.quantity < product.quantity) {
                 throw new Error("Product quantity is less than requested");
             };
-            productData.quantity += product.quantity;
+            productData.quantity += parseInt(product.quantity);
             await productData.save({ session });
 
             //  I want to create barcode for each purchase price and then save in barcodes records
@@ -84,6 +84,7 @@ const add = async (req, res) => {
             paymentStatus: reqBody.paymentStatus,
             paymentType: 'PAID',
             partyType: 'VENDOR',
+            userName: vendor.name,
             invoiceNumber,
             createdAt: newDate,
             updatedAt: newDate
@@ -103,6 +104,7 @@ const add = async (req, res) => {
             amount: amountToPay,
             paymentId: payment._id,
             invoiceNumber,
+            userName: vendor.name,
             paymentStatus: reqBody.paymentStatus,
             partyType: 'VENDOR',
             createdAt: newDate,
@@ -226,11 +228,15 @@ const recordPayment = async (req, res) => {
 
         const amountToPay = parseFloat(requestBody.amountToPay);
 
-        const purchaseOrder = await Purchase.findOne({ _id: requestBody.id, userId: req.user._id, isDeleted: false }).session(session);
+        const purchaseOrder = await Purchase.findOne({ _id: requestBody.id, userId: req.user._id,orderType:'PURCHASE', isDeleted: false }).session(session);
         if (!purchaseOrder) {
             return res.status(400).json({ error: 'Purchase order not found or may be deleted!.' });
         };
 
+        let vendor = await Vendor.findOne({ userId: req.user._id, _id: purchaseOrder.vendorId, isDeleted: false }).session(session);
+        if(!vendor){
+            return res.status(400).json({ error: 'Vendor not found or may be deleted!.' });
+        };
 
         const paymentStatus = purchaseOrder.remainingAmount - amountToPay === 0 ? 'PAID' : 'PENDING';
 
@@ -242,8 +248,10 @@ const recordPayment = async (req, res) => {
             paymentStatus,
             paymentType: 'PAID',
             partyType: 'VENDOR',
+            userName: vendor.name,
             invoiceNumber: purchaseOrder.invoiceNumber,
-            createdAt: new Date(requestBody.paymentDate)
+            createdAt: new Date(),
+            updatedAt: new Date(),
         }, { session: session });
 
         if (requestBody.paymentMode !== 'CASH') {
@@ -264,7 +272,10 @@ const recordPayment = async (req, res) => {
             paymentId: payment._id,
             invoiceNumber: purchaseOrder.invoiceNumber,
             paymentStatus,
-            partyType: 'VENDOR'
+            partyType: 'VENDOR',
+            userName: vendor.name,
+            createdAt: new Date(),
+            updatedAt: new Date(),
         }, { session: session });
 
         // Now Update Purchase order with payments and remaining balance

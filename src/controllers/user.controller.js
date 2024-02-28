@@ -27,6 +27,7 @@ module.exports.add = async (req, res) => {
 
         existingUser.isActive = true;
         existingUser.password = requestBody.password;
+        existingUser.name = `${requestBody.firstName} ${requestBody.lastName}`;
         // ADD PERMISSSIONS
         existingUser.permissions = existingUser.userType === 'ADMIN' ? permissionForAdmin : permissionForManager
 
@@ -358,7 +359,7 @@ module.exports.sendInviteLink = async (req, res) => {
             await passwordCreateRecord.save();
 
             // Send the invite link to the user
-            const inviteLink = `http://localhost:3033/auth/jwt/create-password?name=${user.name}&email=${user.email}?uuid=${uniqueToken}`;
+            const inviteLink = `${process.env.baseURL}/auth/jwt/register?name=${user.name}&email=${user.email}&uuid=${uniqueToken}`;
             await sendEmail(user.email, inviteLink);
         };
 

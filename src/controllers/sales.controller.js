@@ -85,6 +85,7 @@ const add = async (req, res) => {
             paymentType: 'RECEIVED',
             partyType: 'CUSTOMER',
             invoiceNumber,
+            userName: customer.name,
             createdAt: newDate,
             updatedAt: newDate
         };
@@ -104,6 +105,7 @@ const add = async (req, res) => {
             paymentId: payment._id,
             invoiceNumber,
             paymentStatus: reqBody.paymentStatus,
+            userName: customer.name,
             partyType: 'CUSTOMER',
             createdAt: newDate,
             updatedAt: newDate
@@ -229,6 +231,12 @@ const recordPayment = async (req, res) => {
             return res.status(400).json({ error: 'Sales order not found or may be deleted!.' });
         };
 
+        let customer = await Customer.findOne({ _id: salesOrder.customerId, isDeleted: false, userId: salesOrder.userId });
+
+        if(!customer){
+            return res.status(400).json({ error: 'Customer not found or may be deleted!.' });
+        };
+        
         const paymentStatus = salesOrder.remainingAmount - amountToPay === 0 ? 'PAID' : 'PENDING';
 
         // Now create payment
@@ -239,8 +247,10 @@ const recordPayment = async (req, res) => {
             paymentStatus,
             paymentType: 'RECEIVED',
             partyType: 'CUSTOMER',
+            userName: customer.name,
             invoiceNumber: salesOrder.invoiceNumber,
-            createdAt: new Date(requestBody.paymentDate)
+            createdAt: new Date(),
+            updatedAt: new Date()
         }, { session: session });
 
         if (requestBody.paymentMode !== 'CASH') {
@@ -259,8 +269,11 @@ const recordPayment = async (req, res) => {
             amount: amountToPay.toFixed(2),
             paymentId: payment._id,
             invoiceNumber: salesOrder.invoiceNumber,
+            userName: customer.name,
             paymentStatus,
-            partyType: 'CUSTOMER'
+            partyType: 'CUSTOMER',
+            createdAt: new Date(),
+            updatedAt: new Date()
         }, { session: session });
 
         // Now Update Sales order with payments and remaining balance
@@ -507,10 +520,10 @@ const remove = async (req, res) => {
         session.startTransaction();
         isDBTransactionInProgress = true;
 
-        const salesOrder = await Purchase.findOne({ isDeleted: false, _id: req.body.id, userId: req.user._id }).session(session);
+        const salesOrder = await Sales.findOne({ isDeleted: false, _id: req.body.id, userId: req.user._id }).session(session);
 
         if (!salesOrder) {
-            return res.status(404).json({ error: 'Purchase order not found!..' });
+            return res.status(404).json({ error: 'Sales order not found!..' });
         };
 
         // Delete payments and receipts

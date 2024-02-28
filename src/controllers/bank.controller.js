@@ -143,10 +143,32 @@ const setAsDefault = async (req, res) => {
     }
 };
 
+const update = async (req, res) => {
+    try {
+        const updatedData = req.body;
+        const bank = await BankAccount.findOneAndUpdate(
+            { userId: req.user._id, isDeleted: false, _id: req.body.id },
+            updatedData,
+        );
+
+        if (!bank) {
+            return res.status(404).json({ error: 'Bank not found' });
+        }
+
+        return res.status(200).json({ msg: 'Bank Updated Successfully' });
+
+    } catch (error) {
+        serverLogger("error", { error: error.stack || error.toString() });
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+
+}
+
 module.exports = {
     addBankAccount,
     deleteAccount,
     transferFunds,
     list,
-    setAsDefault
+    setAsDefault,
+    update
 };
