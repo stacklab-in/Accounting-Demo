@@ -63,6 +63,10 @@ const permissionForManager = {
         r: true,
         u: false
     },
+    "purchaseReturn": {
+        r: true,
+        u: false
+    },
     "payment": {
         r: true,
         u: false
@@ -115,6 +119,10 @@ const permissionForAdmin = {
         u: true
     },
     "purchase": {
+        r: true,
+        u: true
+    },
+    "purchaseReturn": {
         r: true,
         u: true
     },

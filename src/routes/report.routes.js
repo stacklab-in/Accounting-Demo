@@ -16,4 +16,17 @@ router.post('/daybook', auth,
         name: 'Get Day Book report',
     });
 
+router.post('/ledgers', auth,
+    // checkRole('sales.add'),
+    records.ledgers).descriptor({
+        name: 'Get Ledger Report',
+    });
+
+router.post('/ledger-details', auth,
+    // checkRole('sales.add'),
+    records.ledgerDetails).descriptor({
+        name: 'Get Ledger Details Report',
+    });
+
+
 module.exports = router;

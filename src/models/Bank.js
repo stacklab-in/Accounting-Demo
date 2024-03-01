@@ -33,7 +33,7 @@ const bankAccountSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     }
-});
+},{timestamps: true});
 
 const BankAccount = mongoose.model('Bank', bankAccountSchema);
 

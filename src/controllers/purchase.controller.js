@@ -42,9 +42,6 @@ const add = async (req, res) => {
             if (!productData) {
                 throw new Error("Product not found");
             };
-            if (productData.quantity < product.quantity) {
-                throw new Error("Product quantity is less than requested");
-            };
             productData.quantity += parseInt(product.quantity);
             await productData.save({ session });
 

@@ -393,15 +393,22 @@ const recordPayment = async (req, res) => {
 
 const getPaymentsSummary = async (req, res) => {
     try {
-
         const type = req.body.type; // VENDOR/ EXPENSE/INCOME
+        const startDate = new Date(req.body.startDateValue);
+        const endDate = new Date(req.body.endDateValue);
+        console.log(req.body);
+
         // I want a object in which three keys that are cash, card,UPI and there paid amount using aggregation on payments modal
         const typeSummaryDifferedByPaymentModeTypes = await Payment.aggregate([
             {
                 $match: {
                     isDeleted: false,
                     partyType: { $in: type },
-                    userId: req.user._id
+                    userId: req.user._id,
+                    createdAt: {
+                        $gte: startDate,
+                        $lte: endDate
+                    }
                 }
             },
             {
@@ -413,7 +420,15 @@ const getPaymentsSummary = async (req, res) => {
         ]);
 
         //  Now i want net balance, paid amount and received amount using aggregation on expenditure modal
-        const payment = await Payment.find({ isDeleted: false, userId: req.user._id, partyType: { $in: type } }).sort({ createdAt: -1 });
+        const payment = await Payment.find({
+            isDeleted: false,
+            userId: req.user._id,
+            partyType: { $in: type },
+            createdAt: {
+                $gte: startDate,
+                $lte: endDate
+            }
+        }).sort({ createdAt: -1 });
 
         // Calculate total sales amount
         const totalAmount = payment.reduce((acc, order) => acc + (order.amount), 0);
@@ -443,7 +458,6 @@ const getPaymentsSummary = async (req, res) => {
             totalAmount: totalAmount,
             receivedBalance: receivedBalance,
             paidBalance: paidBalance,
-
         };
 
         return res.status(200).json({ msg: 'Payments fetched successfully!.', data: { balanceSummary, typeSummaryDifferedByPaymentModeTypes, payments: payment } });
