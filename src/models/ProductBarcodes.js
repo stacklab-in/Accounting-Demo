@@ -6,6 +6,7 @@ const productBarcode = new Schema({
     barcode: { type: String, required: true, unique: true },
     purchasePrice: Number,
     productId: { type: Schema.Types.ObjectId, ref: 'Product' },
+    vendorId: { type: Schema.Types.ObjectId, ref: "Vendor", required: true },
     isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 

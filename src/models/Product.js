@@ -10,6 +10,8 @@ const productSchema = new Schema({
     gstValue: { type: String, required: true },
     quantity: { type: Number, required: true },
     barcode: { type: Number, required: true },
+    code: { type: String, required: true },
+    vendorId: { type: Schema.Types.ObjectId, ref: "Vendor" },
     isDeleted: {
         type: Boolean,
         default: false

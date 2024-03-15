@@ -78,7 +78,7 @@ module.exports.fetchBarcodeValues = async (req, res) => {
 module.exports.listAllProductsWithBarcodes = async (req, res) => {
     try {
         // update the user
-        const productBarcodeValue = await ProductBarcode.find({ userId: req.user._id }).sort({ createdAt: -1 }).populate('productId');
+        const productBarcodeValue = await ProductBarcode.find({ userId: req.user._id }).sort({ createdAt: -1 }).populate('productId vendorId');
 
         return res.status(200).json({
             status: true,

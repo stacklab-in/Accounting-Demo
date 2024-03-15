@@ -67,8 +67,10 @@ const add = async (req, res) => {
                     barcode: generatedBarcode,
                     purchasePrice: product.sellingPrice,
                     productId: productData._id,
+                    vendorId: vendor._id,
                     createdAt: newDate,
-                    updatedAt: newDate
+                    updatedAt: newDate,
+                    isDeleted: false
                 }, { session });
                 await productBarcode.save({ session });
             }
