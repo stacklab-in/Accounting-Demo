@@ -7,8 +7,8 @@ const { request } = require('express');
 // Joi schema for validation
 const employeeSchema = Joi.object({
     id: Joi.string().optional(),
-    code: Joi.string().required(),
     name: Joi.string().required(),
+    code: Joi.string().required(),
     mobileNumber: Joi.string().regex(/^\d{10}$/).required().messages({
         'string.pattern.base': 'Mobile number must be exactly 10 digits!'
     }),
@@ -26,6 +26,17 @@ const employeeSchema = Joi.object({
 const createEmployee = async (req, res) => {
     try {
         const body = req.body;
+        console.log("🚀 ~ createEmployee ~ body:", body);
+
+        // Generate unique employee code starting from 101
+        const lastEmployee = await Employee.findOne({ isDeleted: false }).sort({ createdAt: -1 });
+        let newEmployeeCode = 101;
+        if (lastEmployee && lastEmployee.code >= 101) {
+            newEmployeeCode = parseInt(lastEmployee.code) + 1;
+        };
+
+        // Add the generated employee code to the body
+        body.code = newEmployeeCode.toString();
         const { error } = employeeSchema.validate(body);
         if (error) {
             return res.status(400).json({ error: error.details[0].message });
@@ -43,6 +54,7 @@ const createEmployee = async (req, res) => {
 
 
         const employee = await Employee.create(body);
+        console.log("🚀 ~ createEmployee ~ employee:", employee)
 
         res.status(201).json({ msg: 'Employee created successfully', data: employee });
     } catch (error) {

@@ -57,4 +57,8 @@ router.post('/delete',
         }
     });
 
+router.post('/listAll', auth, product.allProducts).descriptor({
+    name: 'Get all products without any condition'
+});
+
 module.exports = router;

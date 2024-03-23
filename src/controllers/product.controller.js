@@ -46,8 +46,9 @@ const add = async (req, res) => {
         requestBody.createdAt = newDate;
         requestBody.updatedAt = newDate;
         requestBody.isDeleted = false;
-        requestBody.vendorId = req.body.vendor._id;
         delete requestBody.category;
+        delete requestBody.quantity;
+        delete requestBody.vendor;
 
         console.log("🚀 ~ add ~ requestBody:", requestBody);
 
@@ -57,24 +58,25 @@ const add = async (req, res) => {
             return res.status(400).json({ error: 'Error while creating product!..' })
         };
 
-        const productBarcode = new ProductBarcode({
-            userId: req.user._id,
-            barcode: requestBody.barcode,
-            purchasePrice: requestBody.purchasePrice,
-            productId: newProduct._id,
-            code: productCode,
-            vendorId: req.body.vendor._id,
-            createdAt: newDate,
-            updatedAt: newDate,
-            isDeleted: false
-        }, { session });
+        // const productBarcode = new ProductBarcode({
+        //     userId: req.user._id,
+        //     barcode: requestBody.barcode,
+        //     purchasePrice: requestBody.purchasePrice,
+        //     productId: newProduct._id,
+        //     code: productCode,
+        //     vendorId: req.body.vendor._id,
+        //     createdAt: newDate,
+        //     updatedAt: newDate,
+        //     isDeleted: false
+        // }, { session });
 
-        if (!productBarcode) {
-            return res.status(400).json({ error: 'Error while creating product barcode!..' })
-        }
+        // if (!productBarcode) {
+        //     return res.status(400).json({ error: 'Error while creating product barcode!..' })
+        // }
 
-        await productBarcode.save({ session });
+        // await productBarcode.save({ session });
         await newProduct.save({ session });
+        console.log("🚀 ~ add ~ newProduct:", newProduct)
 
         // Commit the transaction
         await session.commitTransaction();
@@ -142,7 +144,18 @@ const update = async (req, res) => {
 
 const list = async (req, res) => {
     try {
-        const products = await Product.find({ isDeleted: false, userId: req.user._id, quantity: { $gt: 0 } }).sort({ createdAt: -1 }).populate('category vendorId');
+        const products = await Product.find({ isDeleted: false, userId: req.user._id }).sort({ createdAt: -1 });
+        console.log("🚀 ~ list ~ products:", products.length)
+        return res.status(200).json({ msg: 'Products fetched successfully!.', data: products });
+    } catch (error) {
+        serverLogger("error", { error: error.stack || error.toString() });
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+const allProducts = async (req, res) => {
+    try {
+        const products = await Product.find({ userId: req.user._id }).sort({ createdAt: -1 });
         return res.status(200).json({ msg: 'Products fetched successfully!.', data: products });
     } catch (error) {
         serverLogger("error", { error: error.stack || error.toString() });
@@ -174,5 +187,6 @@ module.exports = {
     add,
     update,
     list,
+    allProducts,
     remove
 }

@@ -15,9 +15,10 @@ const salesOrderSchema = new Schema({
             name: { type: String, required: true },
             quantity: { type: Number, required: true },
             sellingPrice: { type: Number, required: true },
-            gstValue: { type: Number, required: true },
             discount: { type: Number, required: true }, //In Percent
-            netAmount: { type: Number, required: true },
+            sgst: { type: Number },
+            cgst: { type: Number },
+            igst: { type: Number },
             productID: { type: Schema.Types.ObjectId, ref: "Product" },
         }
     ],

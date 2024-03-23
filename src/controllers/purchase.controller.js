@@ -38,7 +38,7 @@ const add = async (req, res) => {
 
         // First take all products decrease the quantity of them 
         for (let product of reqBody.products) {
-            let productData = await Product.findOne({ userId: req.user._id, _id: product.product._id }).session(session);
+            let productData = await Product.findOne({ userId: req.user._id, _id: product.productId }).session(session);
             if (!productData) {
                 throw new Error("Product not found");
             };
@@ -113,6 +113,7 @@ const add = async (req, res) => {
 
         // Find Bank if bankId exist and add balance 
         if (reqBody.paymentMode !== 'CASH') {
+            console.log("🚀 ~ add ~ receipt:", receipt)
             const bank = await Bank.findOne({ _id: reqBody.bank, userId: req.user._id, isDeleted: false });
             if (!bank) {
                 return res.status(404).json({ error: 'Bank not found' });
@@ -128,12 +129,13 @@ const add = async (req, res) => {
             orderType: 'PURCHASE',
             purchaseDate: new Date(),
             products: reqBody.products.map(product => ({
-                name: product.product.name,
+                name: product.name,
                 quantity: product.quantity,
                 sellingPrice: product.sellingPrice,
-                gstValue: product.product.gstValue,
-                discount: product.discount,
-                netAmount: product.quantity * product.sellingPrice
+                sgst: product.sgst || 0,
+                cgst: product.cgst || 0,
+                igst: product.igst || 0,
+                netAmount: parseFloat(product.quantity) * parseFloat(product.sellingPrice)
             })),
             discount: reqBody.discount,
             totalDiscount: reqBody.totalDiscount,
@@ -158,7 +160,6 @@ const add = async (req, res) => {
         // Now create a purchase order 
         let purchaseOrder = new Purchase(purchase, { session });
 
-        await vendor.save({ session });
         await payment.save({ session });
         await receipt.save({ session });
         await purchaseOrder.save({ session });
@@ -227,13 +228,13 @@ const recordPayment = async (req, res) => {
 
         const amountToPay = parseFloat(requestBody.amountToPay);
 
-        const purchaseOrder = await Purchase.findOne({ _id: requestBody.id, userId: req.user._id,orderType:'PURCHASE', isDeleted: false }).session(session);
+        const purchaseOrder = await Purchase.findOne({ _id: requestBody.id, userId: req.user._id, orderType: 'PURCHASE', isDeleted: false }).session(session);
         if (!purchaseOrder) {
             return res.status(400).json({ error: 'Purchase order not found or may be deleted!.' });
         };
 
         let vendor = await Vendor.findOne({ userId: req.user._id, _id: purchaseOrder.vendorId, isDeleted: false }).session(session);
-        if(!vendor){
+        if (!vendor) {
             return res.status(400).json({ error: 'Vendor not found or may be deleted!.' });
         };
 

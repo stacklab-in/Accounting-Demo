@@ -21,6 +21,10 @@ const add = async (req, res) => {
     const incrementedNumber = (parseInt(lastInvoiceNumber.slice(5), 10) + 1).toString();
     const invoiceNumber = 'SINV-' + incrementedNumber;
     const newDate = new Date();
+    const productToSave = [];
+    const receiptsToSave = [];
+    const paymentsToSave = [];
+    const bankToSave = [];
 
     try {
         // Start transaction
@@ -28,8 +32,8 @@ const add = async (req, res) => {
         isDBTransactionInProgress = true;
 
         let reqBody = req.body;
+        console.log("🚀 ~ add ~ reqBody:", reqBody)
 
-        const amountToPay = parseFloat(reqBody.amountToPay);
 
         // If New Customer arrives
         if (typeof reqBody.mobileNumber === 'string') {
@@ -74,93 +78,120 @@ const add = async (req, res) => {
                 throw new Error("Product quantity is less than requested");
             };
             productData.quantity -= product.quantity;
-            await productData.save({ session });
+            productToSave.push(productData);
         };
 
-        const paymentData = {
-            userId: req.user._id,
-            amount: amountToPay,
-            paymentMode: reqBody.paymentMode,
-            paymentStatus: reqBody.paymentStatus,
-            paymentType: 'RECEIVED',
-            partyType: 'CUSTOMER',
-            invoiceNumber,
-            userName: customer.name,
-            createdAt: newDate,
-            updatedAt: newDate
+        // Placeholder for storing payment and receipt IDs
+        const paymentReceiptMappings = {};
+        let paidAmount = 0;
+        //  Traverse on each mode and create records
+        for (const [mode, amount] of Object.entries(reqBody.multipleMode)) {
+            if (amount && parseFloat(amount) > 0) {
+
+                // Create payment record
+                const paymentData = {
+                    userId: req.user._id,
+                    amount: parseFloat(amount),
+                    paymentMode: mode.toUpperCase(),
+                    paymentStatus: reqBody.paymentStatus,
+                    paymentType: 'RECEIVED',
+                    partyType: 'CUSTOMER',
+                    invoiceNumber,
+                    userName: customer.name,
+                    createdAt: newDate,
+                    updatedAt: newDate
+                };
+
+                let payment = new Payment(paymentData, { session });
+
+                let receipt = new Receipt({
+                    userId: req.user._id,
+                    amount: parseFloat(amount),
+                    paymentId: payment._id,
+                    invoiceNumber,
+                    paymentStatus: reqBody.paymentStatus,
+                    userName: customer.name,
+                    partyType: 'CUSTOMER',
+                    createdAt: newDate,
+                    updatedAt: newDate
+                }, { session });
+
+
+                // Store payment and receipt IDs
+                paymentReceiptMappings[mode] = { paymentId: payment._id, receiptId: receipt._id, amount: amount };
+
+                // Find Bank if bankId exist and add balance 
+                if (mode !== 'cash') {
+                    const bank = await Bank.findOne({ _id: reqBody.bank, userId: req.user._id, isDeleted: false });
+                    if (!bank) {
+                        return res.status(404).json({ error: 'Bank not found' });
+                    };
+                    bank.balance = bank.balance + parseFloat(amount);
+                    // await bank.save({ session });
+                    bankToSave.push(bank);
+                };
+
+                // Increase Paid Amount
+                paidAmount += parseFloat(amount);
+
+                // Save payment and receipt
+                receiptsToSave.push(receipt);
+                paymentsToSave.push(payment);
+            }
         };
-
-        if (reqBody.paymentMode !== 'CASH') {
-            paymentData.bankId = reqBody.bank;
-        };
-
-        // Record payment
-        let payment = new Payment(paymentData, { session });
-
-
-        // Create receipt
-        let receipt = new Receipt({
-            userId: req.user._id,
-            amount: amountToPay,
-            paymentId: payment._id,
-            invoiceNumber,
-            paymentStatus: reqBody.paymentStatus,
-            userName: customer.name,
-            partyType: 'CUSTOMER',
-            createdAt: newDate,
-            updatedAt: newDate
-        }, { session });
-
-
-        // Find Bank if bankId exist and add balance 
-        if (reqBody.paymentMode !== 'CASH') {
-            const bank = await Bank.findOne({ _id: reqBody.bank, userId: req.user._id, isDeleted: false });
-            if (!bank) {
-                return res.status(404).json({ error: 'Bank not found' });
-            };
-            bank.balance = bank.balance + parseFloat(reqBody.amountToPay);
-            await bank.save({ session });
-        }
 
         const sales = {
             userId: req.user._id,
             customerId: customer._id,
             salesManId: reqBody.salesMan._id,
             transactionId: newIdForTransaction(),
-            invoiceDate: new Date(),
-            // invoiceDueDate: new Date(reqBody.invoiceDueDate),
+            invoiceDate: new Date(reqBody.invoiceDate),
             products: reqBody.products.map(product => ({
-                name: product.product.name,
+                name: product.name,
                 quantity: product.quantity,
                 sellingPrice: product.sellingPrice,
-                gstValue: product.product.gstValue,
-                discount: product.discount,
-                netAmount: product.quantity * product.sellingPrice,
+                sgst: product.sgst || 0,
+                cgst: product.cgst || 0,
+                igst: product.igst || 0,
+                discount: product.discount || 0,
                 productID: product.product._id
             })),
             discount: reqBody.discount,
             totalDiscount: reqBody.totalDiscount,
             totalAmount: reqBody.totalAmount,
-            remainingAmount: (reqBody.totalAmount - amountToPay),
+            remainingAmount: reqBody.totalAmount - paidAmount,
             invoiceNumber,
-            payments: [{
-                paymentID: payment._id,
-                receiptID: receipt._id,
-                amount: amountToPay,
-                paymentDate: new Date()
-            }],
+            payments: Object.entries(paymentReceiptMappings).map(([mode, ids]) => ({
+                paymentID: ids.paymentId,
+                receiptID: ids.receiptId,
+                amount: ids.amount,
+                paymentDate: newDate
+            })),
             paymentStatus: reqBody.paymentStatus,
             createdAt: newDate,
             updatedAt: newDate
         };
+
         // Now create a sales order 
         let salesOrder = new Sales(sales, { session });
 
+        for (let product of productToSave) {
+            await product.save({ session: session });
+        };
 
-        if (customer) await customer.save({ session });
-        await payment.save({ session });
-        await receipt.save({ session });
+        for (let payment of paymentsToSave) {
+            await payment.save({ session: session });
+        };
+
+        for (let receipt of receiptsToSave) {
+            await receipt.save({ session: session });
+        };
+
+        for (let bank of bankToSave) {
+            await bank.save({ session: session });
+        };
         await salesOrder.save({ session });
+        if (customer) await customer.save({ session });
 
         // Commit the transaction After all work done
         await session.commitTransaction();
@@ -233,10 +264,10 @@ const recordPayment = async (req, res) => {
 
         let customer = await Customer.findOne({ _id: salesOrder.customerId, isDeleted: false, userId: salesOrder.userId });
 
-        if(!customer){
+        if (!customer) {
             return res.status(400).json({ error: 'Customer not found or may be deleted!.' });
         };
-        
+
         const paymentStatus = salesOrder.remainingAmount - amountToPay === 0 ? 'PAID' : 'PENDING';
 
         // Now create payment

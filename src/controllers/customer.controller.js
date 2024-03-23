@@ -7,7 +7,7 @@ const add = async (req, res) => {
 
         let requestBody = req.body;
 
-        const existingCustomer = await Customer.findOne({ isDeleted: false, email: req.body.email });
+        const existingCustomer = await Customer.findOne({ isDeleted: false, mobileNumber: `+91{req.body.mobileNumber}` });
 
         if (existingCustomer) {
             return res.status(400).json({ error: 'Customer already exists!..' })
